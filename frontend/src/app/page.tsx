@@ -1,14 +1,90 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Building2, ShieldCheck, Zap, Receipt, Sparkles, ArrowRight, CheckCircle2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Building2, Receipt, Sparkles, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react'
 
 export default function Home() {
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [isRegister, setIsRegister] = useState(false)
-  const [ruc, setRuc] = useState('')
-  const [razonSocial, setRazonSocial] = useState('')
+  const [isRegister, setIsRegister] = useState(true)
+  const [ruc, setRuc] = useState('20601234567')
+  const [razonSocial, setRazonSocial] = useState('MI EMPRESA DE PRUEBA S.A.C.')
+
+  const [isLoading, setIsLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setErrorMsg('')
+    setSuccessMsg('')
+
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://backend-fastapi-d2wt.onrender.com'
+
+    try {
+      if (isRegister) {
+        // Flujo de Registro de Empresa
+        const res = await fetch(`${apiUrl}/api/v1/auth/register-company`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ruc: ruc,
+            razon_social: razonSocial,
+            email: email,
+            password: password
+          })
+        })
+
+        const data = await res.json()
+
+        if (!res.ok) {
+          throw new Error(data.detail || 'Error al registrar la empresa')
+        }
+
+        setSuccessMsg('¡Empresa y usuario creados con éxito! Redirigiendo...')
+        if (data.access_token) {
+          localStorage.setItem('sunat_token', data.access_token)
+          localStorage.setItem('sunat_company_id', data.company_id)
+        }
+
+        setTimeout(() => {
+          router.push('/billing/new')
+        }, 1200)
+
+      } else {
+        // Flujo de Inicio de Sesión
+        const res = await fetch(`${apiUrl}/api/v1/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: email,
+            password: password
+          })
+        })
+
+        const data = await res.json()
+
+        if (!res.ok) {
+          throw new Error(data.detail || 'Credenciales incorrectas')
+        }
+
+        setSuccessMsg('¡Sesión iniciada con éxito! Redirigiendo...')
+        localStorage.setItem('sunat_token', data.access_token)
+        localStorage.setItem('sunat_company_id', data.company_id)
+
+        setTimeout(() => {
+          router.push('/billing/new')
+        }, 1000)
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Error de conexión con el backend API')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-indigo-500 selection:text-white font-sans">
@@ -35,7 +111,7 @@ export default function Home() {
         </div>
 
         <button 
-          onClick={() => setIsRegister(!isRegister)}
+          onClick={() => { setIsRegister(!isRegister); setErrorMsg(''); setSuccessMsg(''); }}
           className="text-sm font-medium text-slate-300 hover:text-white transition-colors"
         >
           {isRegister ? '¿Ya tienes cuenta? Inicia sesión' : 'Registrar mi MYPE'}
@@ -57,7 +133,7 @@ export default function Home() {
           </h1>
 
           <p className="text-slate-400 text-lg leading-relaxed">
-            Plataforma Multi-Empresa ultra-rápida, adaptada a celulares y laptops. Envío directo a SUNAT (SEE Emisor), firma digital automática, lectura OCR de gastos con IA y reportes para SIRE.
+            Plataforma Multi-Empresa ultra-rápida. Envío directo a SUNAT (SEE Emisor), firma digital automática, lectura OCR de gastos con IA y reportes para SIRE.
           </p>
 
           <div className="grid grid-cols-2 gap-4 pt-2">
@@ -91,16 +167,31 @@ export default function Home() {
             </p>
           </div>
 
-          <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
+          {errorMsg && (
+            <div className="mb-4 bg-rose-950/60 border border-rose-800 text-rose-300 p-3 rounded-xl text-xs flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
+          {successMsg && (
+            <div className="mb-4 bg-emerald-950/60 border border-emerald-800 text-emerald-300 p-3 rounded-xl text-xs flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+              <span>{successMsg}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
             {isRegister && (
               <>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">RUC de la empresa</label>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">RUC de la empresa (11 dígitos)</label>
                   <div className="relative">
                     <input 
                       type="text"
                       maxLength={11}
-                      placeholder="20123456789"
+                      required
+                      placeholder="20601234567"
                       value={ruc}
                       onChange={(e) => setRuc(e.target.value)}
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
@@ -113,7 +204,8 @@ export default function Home() {
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Razón Social</label>
                   <input 
                     type="text"
-                    placeholder="MI EMPRESA S.A.C."
+                    required
+                    placeholder="MI EMPRESA DE PRUEBA S.A.C."
                     value={razonSocial}
                     onChange={(e) => setRazonSocial(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
@@ -126,6 +218,7 @@ export default function Home() {
               <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Correo Electrónico</label>
               <input 
                 type="email"
+                required
                 placeholder="admin@empresa.pe"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -137,6 +230,7 @@ export default function Home() {
               <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Contraseña</label>
               <input 
                 type="password"
+                required
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -146,9 +240,10 @@ export default function Home() {
 
             <button 
               type="submit"
-              className="w-full bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white font-semibold py-3 rounded-lg shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 transition-all group"
+              disabled={isLoading}
+              className="w-full bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white font-semibold py-3 rounded-lg shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 transition-all group disabled:opacity-50"
             >
-              <span>{isRegister ? 'Crear Empresa y Cuenta' : 'Ingresar al Sistema'}</span>
+              <span>{isLoading ? 'Procesando...' : (isRegister ? 'Crear Empresa y Cuenta' : 'Ingresar al Sistema')}</span>
               <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
             </button>
           </form>

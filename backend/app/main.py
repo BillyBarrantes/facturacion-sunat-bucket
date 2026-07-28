@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.security import verify_token, require_tenant
+from app.api.endpoints.auth import router as auth_router
 from app.api.endpoints.comprobantes import router as comprobantes_router
 from app.api.endpoints.dashboard import router as dashboard_router
 from app.api.endpoints.reports import router as reports_router
@@ -24,10 +25,12 @@ app.add_middleware(
 )
 
 # Incluir routers del API v1
+app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(comprobantes_router, prefix=settings.API_V1_STR)
 app.include_router(dashboard_router, prefix=settings.API_V1_STR)
 app.include_router(reports_router, prefix=settings.API_V1_STR)
 app.include_router(purchases_router, prefix=settings.API_V1_STR)
+
 
 
 @app.get("/")
