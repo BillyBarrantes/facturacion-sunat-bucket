@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
+         xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+         xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2">
+    <ext:UBLExtensions>
+        <ext:UBLExtension>
+            <ext:ExtensionContent>
+                <!-- La Firma Digital será inyectada aquí por signer.py -->
+            </ext:ExtensionContent>
+        </ext:UBLExtension>
+    </ext:UBLExtensions>
+    <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+    <cbc:CustomizationID>2.0</cbc:CustomizationID>
+    <cbc:ID>{{ comprobante.serie }}-{{ "%08d"|format(comprobante.numero) }}</cbc:ID>
+    <cbc:IssueDate>{{ comprobante.fecha_emision.strftime('%Y-%m-%d') }}</cbc:IssueDate>
+    <cbc:IssueTime>{{ comprobante.fecha_emision.strftime('%H:%M:%S') }}</cbc:IssueTime>
+    <cbc:InvoiceTypeCode listID="0101">{{ comprobante.tipo_comprobante }}</cbc:InvoiceTypeCode>
+    <cbc:Note languageLocaleID="1000">{{ comprobante.monto_letras }}</cbc:Note>
+    <cbc:DocumentCurrencyCode>{{ comprobante.moneda }}</cbc:DocumentCurrencyCode>
+    
+    <!-- DATOS DEL EMISOR -->
+    <cac:AccountingSupplierParty>
+        <cac:Party>
+            <cac:PartyIdentification>
+                <cbc:ID schemeID="6">{{ emisor.ruc }}</cbc:ID>
+            </cac:PartyIdentification>
+            <cac:PartyName>
+                <cbc:Name><![CDATA[{{ emisor.nombre_comercial or emisor.razon_social }}]]></cbc:Name>
+            </cac:PartyName>
+            <cac:PartyLegalEntity>
+                <cbc:RegistrationName><![CDATA[{{ emisor.razon_social }}]]></cbc:RegistrationName>
+                <cac:RegistrationAddress>
+                    <cbc:AddressTypeCode>{{ emisor.ubigeo }}</cbc:AddressTypeCode>
+                    <cac:AddressLine>
+                        <cbc:Line><![CDATA[{{ emisor.direccion }}]]></cbc:Line>
+                    </cac:AddressLine>
+                </cac:RegistrationAddress>
+            </cac:PartyLegalEntity>
+        </cac:Party>
+    </cac:AccountingSupplierParty>
+    
+    <!-- DATOS DEL RECEPTOR/CLIENTE -->
+    <cac:AccountingCustomerParty>
+        <cac:Party>
+            <cac:PartyIdentification>
+                <cbc:ID schemeID="{{ cliente.tipo_doc }}">{{ cliente.num_doc }}</cbc:ID>
+            </cac:PartyIdentification>
+            <cac:PartyLegalEntity>
+                <cbc:RegistrationName><![CDATA[{{ cliente.razon_social }}]]></cbc:RegistrationName>
+            </cac:PartyLegalEntity>
+        </cac:Party>
+    </cac:AccountingCustomerParty>
+    
+    <!-- FORMA DE PAGO -->
+    <cac:PaymentTerms>
+        <cbc:ID>FormaPago</cbc:ID>
+        <cbc:PaymentMeansID>Contado</cbc:PaymentMeansID>
+        <cbc:Amount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.importe_total) }}</cbc:Amount>
+    </cac:PaymentTerms>
+    
+    <!-- TOTALES IMPUESTOS (IGV) -->
+    <cac:TaxTotal>
+        <cbc:TaxAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.total_igv) }}</cbc:TaxAmount>
+        <cac:TaxSubtotal>
+            <cbc:TaxableAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.total_gravado) }}</cbc:TaxableAmount>
+            <cbc:TaxAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.total_igv) }}</cbc:TaxAmount>
+            <cac:TaxCategory>
+                <cac:TaxScheme>
+                    <cbc:ID>1000</cbc:ID>
+                    <cbc:Name>IGV</cbc:Name>
+                    <cbc:TaxTypeCode>VAT</cbc:TaxTypeCode>
+                </cac:TaxScheme>
+            </cac:TaxCategory>
+        </cac:TaxSubtotal>
+    </cac:TaxTotal>
+    
+    <!-- TOTALES IMPORTE -->
+    <cac:LegalMonetaryTotal>
+        <cbc:LineExtensionAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.total_gravado) }}</cbc:LineExtensionAmount>
+        <cbc:TaxInclusiveAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.importe_total) }}</cbc:TaxInclusiveAmount>
+        <cbc:PayableAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.importe_total) }}</cbc:PayableAmount>
+    </cac:LegalMonetaryTotal>
+    
+    <!-- ÍTEMS / LÍNEAS -->
+    {% for item in detalles %}
+    <cac:InvoiceLine>
+        <cbc:ID>{{ loop.index }}</cbc:ID>
+        <cbc:InvoicedQuantity unitCode="{{ item.unidad_medida }}">{{ "%.2f"|format(item.cantidad) }}</cbc:InvoicedQuantity>
+        <cbc:LineExtensionAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(item.valor_unitario * item.cantidad) }}</cbc:LineExtensionAmount>
+        <cac:PricingReference>
+            <cac:AlternativeConditionPrice>
+                <cbc:PriceAmount currencyID="{{ comprobante.moneda }}">{{ "%.4f"|format(item.precio_unitario) }}</cbc:PriceAmount>
+                <cbc:PriceTypeCode>01</cbc:PriceTypeCode>
+            </cac:AlternativeConditionPrice>
+        </cac:PricingReference>
+        <cac:TaxTotal>
+            <cbc:TaxAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(item.igv) }}</cbc:TaxAmount>
+            <cac:TaxSubtotal>
+                <cbc:TaxableAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(item.valor_unitario * item.cantidad) }}</cbc:TaxableAmount>
+                <cbc:TaxAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(item.igv) }}</cbc:TaxAmount>
+                <cac:TaxCategory>
+                    <cbc:Percent>18.00</cbc:Percent>
+                    <cbc:TaxExemptionReasonCode>{{ item.tipo_afectacion_igv }}</cbc:TaxExemptionReasonCode>
+                    <cac:TaxScheme>
+                        <cbc:ID>1000</cbc:ID>
+                        <cbc:Name>IGV</cbc:Name>
+                        <cbc:TaxTypeCode>VAT</cbc:TaxTypeCode>
+                    </cac:TaxScheme>
+                </cac:TaxCategory>
+            </cac:TaxSubtotal>
+        </cac:TaxTotal>
+        <cac:Item>
+            <cbc:Description><![CDATA[{{ item.descripcion }}]]></cbc:Description>
+            {% if item.codigo %}
+            <cac:SellersItemIdentification>
+                <cbc:ID>{{ item.codigo }}</cbc:ID>
+            </cac:SellersItemIdentification>
+            {% endif %}
+        </cac:Item>
+        <cac:Price>
+            <cbc:PriceAmount currencyID="{{ comprobante.moneda }}">{{ "%.4f"|format(item.valor_unitario) }}</cbc:PriceAmount>
+        </cac:Price>
+    </cac:InvoiceLine>
+    {% endfor %}
+</Invoice>
