@@ -259,7 +259,9 @@ export default function NewInvoicePage() {
       setModalOpen(true)
       setNumero(n => n + 1)
     } catch (err: any) {
-      setErrorMsg(err.message || 'Ocurrió un error al procesar el comprobante.')
+      const msg = err.message || 'Ocurrió un error al procesar el comprobante.'
+      setErrorMsg(msg)
+      alert(`Atención al emitir comprobante:\n\n${msg}`)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } finally {
       setIsSubmitting(false)
