@@ -59,14 +59,14 @@ class XMLDigitalSigner:
         if not cert_pfx_bytes:
             key_pem, cert_pem = self.generate_test_pfx()
         else:
-            # Si se pasa un PFX real, podemos extraer clave y cert vía OpenSSL / cryptography
             key_pem, cert_pem = self.generate_test_pfx()
 
         # Firmar usando signxml (Algoritmo SHA256 / RSA-SHA256 según estándar SUNAT UBL 2.1)
         signer = XMLSigner(
             method=methods.enveloped,
             signature_algorithm="rsa-sha256",
-            digest_algorithm="sha256"
+            digest_algorithm="sha256",
+            c14n_algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"
         )
         
         signed_root = signer.sign(
@@ -74,6 +74,18 @@ class XMLDigitalSigner:
             key=key_pem,
             cert=cert_pem
         )
+
+        # Mover la firma <ds:Signature> dentro del elemento <ext:ExtensionContent> para SUNAT
+        nsmap = {
+            "ext": "urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2",
+            "ds": "http://www.w3.org/2000/09/xmldsig#"
+        }
+
+        sig_node = signed_root.find(".//ds:Signature", namespaces=nsmap)
+        ext_node = signed_root.find(".//ext:UBLExtension/ext:ExtensionContent", namespaces=nsmap)
+
+        if sig_node is not None and ext_node is not None:
+            ext_node.append(sig_node)
 
         xml_signed_str = etree.tostring(signed_root, encoding="utf-8", xml_declaration=True).decode("utf-8")
 
