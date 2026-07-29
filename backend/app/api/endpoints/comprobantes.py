@@ -48,6 +48,8 @@ class EmitirComprobanteSchema(BaseModel):
     cliente_direccion: Optional[str] = Field("", example="AV. LOS OLIVOS 456 - LIMA")
     moneda: str = Field("PEN", example="PEN")
     metodo_pago: str = Field("EFECTIVO", example="EFECTIVO")
+    descuento_global: Optional[float] = Field(0.0, example=0.0)
+    anticipo_total: Optional[float] = Field(0.0, example=0.0)
     items: List[DetalleItemSchema]
 
 @router.post("/emitir")
@@ -125,15 +127,24 @@ def emitir_comprobante(
             "total": item_total
         })
 
+    descuento = payload.descuento_global or 0.0
+    anticipo = payload.anticipo_total or 0.0
+
+    total_gravado_neto = max(0.0, total_gravado - descuento)
+    total_igv = round(total_gravado_neto * 0.18, 2)
+    importe_total = max(0.0, total_gravado_neto + total_igv - anticipo)
+
     comprobante_data = {
         "tipo_comprobante": payload.tipo_comprobante,
         "serie": payload.serie,
         "numero": payload.numero,
         "fecha_emision": datetime.now(),
         "moneda": payload.moneda,
-        "total_gravado": round(total_gravado, 2),
+        "total_gravado": round(total_gravado_neto, 2),
         "total_igv": round(total_igv, 2),
         "importe_total": round(importe_total, 2),
+        "descuento_global": round(descuento, 2),
+        "anticipo_total": round(anticipo, 2),
         "metodo_pago": payload.metodo_pago
     }
 

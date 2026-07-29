@@ -17,6 +17,8 @@ interface TicketModalProps {
     documento: string
     clienteDireccion?: string
     opGravada?: number
+    descuento?: number
+    anticipo?: number
     igv: number
     montoTotal: number
     hashCpe: string
@@ -118,10 +120,22 @@ export default function TicketModal({ isOpen, onClose, comprobante }: TicketModa
               <span>S/ {comprobante.opGravada.toFixed(2)}</span>
             </div>
           )}
+          {comprobante.descuento ? (
+            <div className="flex justify-between text-[11px]">
+              <span>Descuento Aplicado:</span>
+              <span>- S/ {comprobante.descuento.toFixed(2)}</span>
+            </div>
+          ) : null}
           <div className="flex justify-between text-[11px]">
             <span>IGV (18%):</span>
             <span>S/ {comprobante.igv.toFixed(2)}</span>
           </div>
+          {comprobante.anticipo ? (
+            <div className="flex justify-between text-[11px]">
+              <span>Anticipo Aplicado:</span>
+              <span>- S/ {comprobante.anticipo.toFixed(2)}</span>
+            </div>
+          ) : null}
           <div className="flex justify-between font-bold text-sm mt-1">
             <span>IMPORTE TOTAL:</span>
             <span>S/ {comprobante.montoTotal.toFixed(2)}</span>
