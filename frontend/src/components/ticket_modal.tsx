@@ -64,13 +64,17 @@ export default function TicketModal({
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
       <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-        <button
-          onClick={onClose}
-          disabled={isEmitting}
-          className="absolute right-4 top-4 text-slate-400 hover:text-white transition-colors"
-        >
-          <X className="h-5 w-5" />
-        </button>
+        {!isPreview && (
+          <div className="absolute right-4 top-4">
+            <button
+              onClick={onClose}
+              disabled={isEmitting}
+              className="text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded border border-slate-700 transition-colors"
+            >
+              Cerrar ventana
+            </button>
+          </div>
+        )}
 
         {/* Modal Header */}
         <div className="text-center mb-6">
@@ -124,18 +128,20 @@ export default function TicketModal({
           {/* DETALLE DE LA OPERACIÓN */}
           <table className="w-full text-left my-2">
             <thead>
-              <tr className="border-b border-slate-200">
-                <th>Cant</th>
-                <th>Descripción</th>
-                <th className="text-right">Total</th>
+              <tr className="border-b border-slate-200 text-[10px]">
+                <th className="py-1">Cant</th>
+                <th className="py-1">Descripción</th>
+                <th className="text-right py-1">P.Unit</th>
+                <th className="text-right py-1">Total</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="text-[10px]">
               {comprobante.items.map((item, idx) => (
-                <tr key={idx}>
-                  <td>{item.cantidad}</td>
-                  <td>{item.descripcion}</td>
-                  <td className="text-right font-bold">S/ {(item.total ?? 0).toFixed(2)}</td>
+                <tr key={idx} className="border-b border-slate-100 border-dashed">
+                  <td className="py-1 align-top">{item.cantidad}</td>
+                  <td className="py-1 pr-1">{item.descripcion}</td>
+                  <td className="text-right py-1 align-top text-slate-600">{((item.precio_unitario ?? ((item.total ?? 0)/(item.cantidad || 1))) / 1.18).toFixed(2)}</td>
+                  <td className="text-right font-bold py-1 align-top">{((item.total ?? 0) / 1.18).toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -207,22 +213,25 @@ export default function TicketModal({
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={handlePrint}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm transition-all"
-            >
-              <Printer className="h-4 w-4" />
-              <span>Imprimir Ticket</span>
-            </button>
-            
-            <button
-              onClick={handleWhatsApp}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm transition-all shadow-lg shadow-emerald-600/20"
-            >
-              <Share2 className="h-4 w-4" />
-              <span>WhatsApp</span>
-            </button>
+          /* BOTONERA DE ACCIÓN Y CIERRE (SOLO EMITIDO) */
+          <div className="mt-6 space-y-3">
+            <div className="flex gap-4">
+              <button 
+                onClick={() => handlePrint()}
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 border border-slate-700 transition-colors"
+              >
+                <Printer className="h-5 w-5" />
+                Imprimir Ticket
+              </button>
+              
+              <button 
+                onClick={handleWhatsApp}
+                className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
+              >
+                <Share2 className="h-5 w-5" />
+                WhatsApp
+              </button>
+            </div>
           </div>
         )}
       </div>

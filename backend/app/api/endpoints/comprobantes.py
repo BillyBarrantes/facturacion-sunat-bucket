@@ -14,7 +14,7 @@ router = APIRouter(prefix="/comprobantes", tags=["Comprobantes Electrónicos"])
 
 @router.get("")
 def listar_comprobantes(current_user: Dict[str, Any] = Depends(require_tenant)):
-    """Obtiene la lista de comprobantes emitidos por la empresa desde Supabase DB."""
+    """Obtiene la lista de comprobantes emitidos por la empresa desde Supabase DB con ítems reales."""
     company_id = current_user["company_id"]
     conn = get_db_connection()
     cur = conn.cursor()
@@ -23,8 +23,10 @@ def listar_comprobantes(current_user: Dict[str, Any] = Depends(require_tenant)):
             """
             SELECT 
                 c.id, c.tipo_comprobante, c.serie, c.numero, c.fecha_emision,
-                c.moneda, c.importe_total, c.estado_sunat, c.hash_cpe
+                c.moneda, c.importe_total, c.total_gravado, c.total_igv, c.estado_sunat, c.hash_cpe,
+                cl.num_doc, cl.razon_social, cl.direccion
             FROM public.comprobantes c
+            LEFT JOIN public.clientes cl ON c.cliente_id = cl.id
             WHERE c.company_id = %s
             ORDER BY c.created_at DESC;
             """,
@@ -33,6 +35,25 @@ def listar_comprobantes(current_user: Dict[str, Any] = Depends(require_tenant)):
         rows = cur.fetchall()
         comprobantes = []
         for r in rows:
+            comp_id = r[0]
+            cur.execute(
+                """
+                SELECT descripcion, cantidad, precio_unitario, total
+                FROM public.comprobante_detalles
+                WHERE comprobante_id = %s;
+                """,
+                (comp_id,)
+            )
+            item_rows = cur.fetchall()
+            items_list = []
+            for item in item_rows:
+                items_list.append({
+                    "descripcion": item[0],
+                    "cantidad": float(item[1]),
+                    "precio_unitario": float(item[2]),
+                    "total": float(item[3])
+                })
+
             comprobantes.append({
                 "id": str(r[0]),
                 "tipo_comprobante": r[1],
@@ -40,10 +61,36 @@ def listar_comprobantes(current_user: Dict[str, Any] = Depends(require_tenant)):
                 "fecha_emision": r[4].strftime('%d/%m/%Y %H:%M') if r[4] else "",
                 "moneda": r[5],
                 "importe_total": float(r[6]),
-                "estado_sunat": r[7],
-                "hash_cpe": r[8] or ""
+                "total_gravado": float(r[7] or 0),
+                "total_igv": float(r[8] or 0),
+                "estado_sunat": r[9],
+                "hash_cpe": r[10] or "",
+                "cliente_num_doc": r[11] or "00000000",
+                "cliente_razon_social": r[12] or "CLIENTES VARIOS",
+                "cliente_direccion": r[13] or "",
+                "items": items_list
             })
         return {"success": True, "comprobantes": comprobantes}
+    finally:
+        cur.close()
+        conn.close()
+
+@router.get("/correlativo/{tipo_comprobante}/{serie}")
+def obtener_correlativo(
+    tipo_comprobante: str, 
+    serie: str, 
+    current_user: Dict[str, Any] = Depends(require_tenant)
+):
+    """Obtiene el siguiente número correlativo para la serie especificada."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT COALESCE(MAX(numero), 0) FROM public.comprobantes WHERE company_id = %s AND tipo_comprobante = %s AND serie = %s",
+            (current_user["company_id"], tipo_comprobante, serie)
+        )
+        siguiente = cur.fetchone()[0] + 1
+        return {"success": True, "siguiente_numero": siguiente}
     finally:
         cur.close()
         conn.close()
@@ -95,7 +142,7 @@ def emitir_comprobante(
 ):
     """
     Endpoint principal de Emisión Directa (3 clics).
-    Genera XML UBL 2.1, Firma Digitalmente, envía a SUNAT SOAP (BETA/PROD) y guarda en Supabase.
+    Genera XML UBL 2.1, Firma Digitalmente, envía a SUNAT SOAP y guarda en Supabase.
     """
     company_id = current_user["company_id"]
     conn = get_db_connection()
@@ -108,7 +155,6 @@ def emitir_comprobante(
     )
     empresa_row = cur.fetchone()
     if not empresa_row:
-        # Para ambiente de pruebas, si la empresa no está registrada en DB aún, usamos los datos del emisor de prueba de SUNAT
         emisor = {
             "ruc": "20000000001",
             "razon_social": "EMPRESA MYPE DE PRUEBA S.A.C.",
@@ -140,12 +186,19 @@ def emitir_comprobante(
     detalles_calculados = []
 
     for item in payload.items:
-        # Desglosar precio unitario (con IGV) en valor unitario (sin IGV)
-        precio_u = item.precio_unitario
+        precio_u = float(item.precio_unitario)
+        
+        # Calcular el total del ítem PRIMERO (basado en el precio unitario exacto)
+        item_total = round(precio_u * item.cantidad, 2)
+        
+        # Deducir el subtotal (Valor de Venta) quitándole el IGV al total del ítem
+        subtotal_valor = round(item_total / 1.18, 2)
+        
+        # Deducir el IGV restándole al total el subtotal
+        item_igv = round(item_total - subtotal_valor, 2)
+        
+        # Valor unitario para el XML (4 decimales por estándar)
         valor_u = round(precio_u / 1.18, 4)
-        subtotal_valor = round(valor_u * item.cantidad, 2)
-        item_igv = round(subtotal_valor * 0.18, 2)
-        item_total = round(subtotal_valor + item_igv, 2)
 
         total_gravado += subtotal_valor
         total_igv += item_igv
@@ -158,7 +211,7 @@ def emitir_comprobante(
             "cantidad": item.cantidad,
             "valor_unitario": valor_u,
             "precio_unitario": precio_u,
-            "tipo_afectacion_igv": "10", # Gravado - Operación Onerosa
+            "tipo_afectacion_igv": "10",
             "igv": item_igv,
             "total": item_total
         })
@@ -170,10 +223,17 @@ def emitir_comprobante(
     total_igv = round(total_gravado_neto * 0.18, 2)
     importe_total = max(0.0, total_gravado_neto + total_igv - anticipo)
 
+    # 2.5 Calcular el número correlativo correcto desde la BD
+    cur.execute(
+        "SELECT COALESCE(MAX(numero), 0) FROM public.comprobantes WHERE company_id = %s AND tipo_comprobante = %s AND serie = %s",
+        (company_id, payload.tipo_comprobante, payload.serie)
+    )
+    siguiente_numero = cur.fetchone()[0] + 1
+
     comprobante_data = {
         "tipo_comprobante": payload.tipo_comprobante,
         "serie": payload.serie,
-        "numero": payload.numero,
+        "numero": siguiente_numero,
         "fecha_emision": datetime.now(),
         "moneda": payload.moneda,
         "total_gravado": round(total_gravado_neto, 2),
@@ -200,7 +260,7 @@ def emitir_comprobante(
     xml_firmado, hash_cpe = signer.sign_xml(xml_raw)
 
     # 5. Enviar a SUNAT vía Web Service SOAP
-    filename_base = f"{emisor['ruc']}-{payload.tipo_comprobante}-{payload.serie}-{payload.numero:08d}"
+    filename_base = f"{emisor['ruc']}-{payload.tipo_comprobante}-{payload.serie}-{siguiente_numero:08d}"
     soap_client = SunatSOAPClient()
     resultado_sunat = soap_client.send_bill(
         ruc=emisor["ruc"],
@@ -217,21 +277,23 @@ def emitir_comprobante(
             """
             INSERT INTO public.clientes (company_id, tipo_doc, num_doc, razon_social, direccion)
             VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT (company_id, num_doc) DO UPDATE 
-            SET razon_social = EXCLUDED.razon_social, direccion = EXCLUDED.direccion;
+            ON CONFLICT (company_id, tipo_doc, num_doc) DO UPDATE 
+            SET razon_social = EXCLUDED.razon_social, direccion = EXCLUDED.direccion
+            RETURNING id;
             """,
             (company_id, payload.cliente_tipo_doc, payload.cliente_num_doc, payload.cliente_razon_social, payload.cliente_direccion or "")
         )
+        cliente_id = cur.fetchone()[0]
 
         cur.execute(
             """
             INSERT INTO public.comprobantes 
-            (company_id, tipo_comprobante, serie, numero, fecha_emision, moneda, total_gravado, total_igv, importe_total, metodo_pago, estado_sunat, codigo_error_sunat, mensaje_sunat, hash_cpe)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (company_id, cliente_id, tipo_comprobante, serie, numero, fecha_emision, moneda, total_gravado, total_igv, importe_total, metodo_pago, estado_sunat, codigo_error_sunat, mensaje_sunat, hash_cpe)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
             """,
             (
-                company_id, payload.tipo_comprobante, payload.serie, payload.numero,
+                company_id, cliente_id, payload.tipo_comprobante, payload.serie, siguiente_numero,
                 comprobante_data["fecha_emision"], payload.moneda, comprobante_data["total_gravado"],
                 comprobante_data["total_igv"], comprobante_data["importe_total"], payload.metodo_pago,
                 resultado_sunat["estado"], resultado_sunat["codigo_error"], resultado_sunat["mensaje_sunat"], hash_cpe
@@ -253,6 +315,7 @@ def emitir_comprobante(
     except Exception as e:
         conn.rollback()
         print(f"Error guardando en BD: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al guardar en base de datos: {str(e)}")
     finally:
         cur.close()
         conn.close()
@@ -260,7 +323,7 @@ def emitir_comprobante(
     return {
         "success": True,
         "comprobante_id": str(comprobante_id) if 'comprobante_id' in locals() else None,
-        "comprobante": f"{payload.serie}-{payload.numero:08d}",
+        "comprobante": f"{payload.serie}-{siguiente_numero:08d}",
         "estado_sunat": resultado_sunat["estado"],
         "codigo_sunat": resultado_sunat["codigo_error"],
         "mensaje_sunat": resultado_sunat["mensaje_sunat"],

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import Navbar from '@/components/navbar'
 import TicketModal from '@/components/ticket_modal'
-import { UserCheck, ShoppingBag, Send, Plus, Trash2, ShieldAlert, Sparkles, Search, CheckCircle2, Loader2, Building, Percent, DollarSign, FileText, Receipt } from 'lucide-react'
+import { UserCheck, ShoppingBag, Send, Plus, Trash2, Pencil, ShieldAlert, Sparkles, Search, CheckCircle2, Loader2, Building, Percent, DollarSign, FileText, Receipt } from 'lucide-react'
 
 export default function NewInvoicePage() {
   // Pestaña Seleccionada: '01' = Factura, '03' = Boleta
@@ -18,9 +18,9 @@ export default function NewInvoicePage() {
 
   // Paso 1: Cliente / Receptor
   const [clienteTipoDoc, setClienteTipoDoc] = useState('6') // 6: RUC, 1: DNI, 0: Sin Doc
-  const [clienteNumDoc, setClienteNumDoc] = useState('20600000001')
-  const [clienteRazonSocial, setClienteRazonSocial] = useState('CLIENTE DE PRUEBA S.A.C.')
-  const [clienteDireccion, setClienteDireccion] = useState('AV. LOS OLIVOS 456 - LIMA')
+  const [clienteNumDoc, setClienteNumDoc] = useState('')
+  const [clienteRazonSocial, setClienteRazonSocial] = useState('')
+  const [clienteDireccion, setClienteDireccion] = useState('')
   
   // Consulta de RUC/DNI en vivo
   const [isSearchingDoc, setIsSearchingDoc] = useState(false)
@@ -36,9 +36,7 @@ export default function NewInvoicePage() {
     valor_unitario: number
     precio_unitario: number
     unidad_medida: string
-  }>>([
-    { descripcion: 'DESARROLLO DE SOFTWARE / SERVICIO', cantidad: 1, valor_unitario: 100.0, precio_unitario: 118.0, unidad_medida: 'NIU' }
-  ])
+  }>>([])
   
   const [newCantidad, setNewCantidad] = useState('1')
   const [newDesc, setNewDesc] = useState('')
@@ -54,6 +52,49 @@ export default function NewInvoicePage() {
   const [comprobanteEmitido, setComprobanteEmitido] = useState<any>(null)
   const [errorMsg, setErrorMsg] = useState('')
 
+  const fetchCorrelativo = async () => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+      const token = localStorage.getItem('sunat_token') || 'test-token'
+      const res = await fetch(`${apiUrl}/api/v1/comprobantes/correlativo/${tipoComprobante}/${serie}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setNumero(data.siguiente_numero || 1)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  useEffect(() => {
+    fetchCorrelativo()
+  }, [tipoComprobante, serie])
+
+  // Resetear Formulario Limpio tras Emisión o Cancelación
+  const resetForm = () => {
+    if (tipoComprobante === '01') {
+      setClienteTipoDoc('6')
+      setClienteNumDoc('')
+      setClienteRazonSocial('')
+      setClienteDireccion('')
+    } else {
+      setClienteTipoDoc('0')
+      setClienteNumDoc('00000000')
+      setClienteRazonSocial('CLIENTES VARIOS')
+      setClienteDireccion('')
+    }
+    setItems([])
+    setDescuentoGlobal('0')
+    setAnticipoTotal('0')
+    setNewDesc('')
+    setNewPrecio('')
+    setNewCantidad('1')
+    setErrorMsg('')
+    setDocBadge(null)
+  }
+
   // Cambio de Pestaña: Factura / Boleta
   const handleSelectTab = (tipo: string) => {
     setTipoComprobante(tipo)
@@ -61,28 +102,52 @@ export default function NewInvoicePage() {
     setDocBadge(null)
 
     if (tipo === '01') {
-      // Configuración para FACTURA
+      // Configuración para FACTURA (Exige RUC 11 dígitos)
       setSerie('F001')
       setClienteTipoDoc('6')
-      if (clienteNumDoc === '00000000' || clienteNumDoc === '20600000001') {
-        setClienteNumDoc('20600000001')
-        setClienteRazonSocial('CLIENTE DE PRUEBA S.A.C.')
-        setClienteDireccion('AV. LOS OLIVOS 456 - LIMA')
-      }
+      setClienteNumDoc('')
+      setClienteRazonSocial('')
+      setClienteDireccion('')
     } else {
-      // Configuración para BOLETA
+      // Configuración para BOLETA (Empieza por defecto en Sin Documento)
       setSerie('B001')
-      setClienteTipoDoc('1')
+      setClienteTipoDoc('0')
+      setClienteNumDoc('00000000')
+      setClienteRazonSocial('CLIENTES VARIOS')
+      setClienteDireccion('')
       // Resetear campos avanzados de factura
       setDescuentoGlobal('0')
       setAnticipoTotal('0')
       setModoIgv('INC')
+    }
+  }
 
-      if (!clienteNumDoc || clienteNumDoc === '20600000001') {
-        setClienteNumDoc('00000000')
-        setClienteRazonSocial('CLIENTES VARIOS')
-        setClienteDireccion('')
-      }
+  // Manejo de Cambio de Tipo de Documento
+  const handleSelectTipoDoc = (tipo: string) => {
+    setClienteTipoDoc(tipo)
+    setErrorMsg('')
+    setDocBadge(null)
+
+    if (tipo === '0') {
+      // Sin Documento (Clientes Varios)
+      setClienteNumDoc('00000000')
+      setClienteRazonSocial('CLIENTES VARIOS')
+      setClienteDireccion('')
+    } else {
+      // DNI (1) o RUC (6) -> Dejar en blanco para ingresar nuevos datos
+      setClienteNumDoc('')
+      setClienteRazonSocial('')
+      setClienteDireccion('')
+    }
+  }
+
+  // Manejo de cambio en Número de Documento (limpieza automática si se borra)
+  const handleNumDocChange = (val: string) => {
+    setClienteNumDoc(val)
+    if (val.trim() === '') {
+      setClienteRazonSocial('')
+      setClienteDireccion('')
+      setDocBadge(null)
     }
   }
 
@@ -108,12 +173,21 @@ export default function NewInvoicePage() {
           setClienteRazonSocial(data.razon_social)
           if (data.direccion) {
             setClienteDireccion(data.direccion)
+          } else {
+            setClienteDireccion('')
           }
           const srcText = data.source === 'DATABASE' ? '✓ Base de Datos' : (data.tipo_doc === '6' ? '✓ SUNAT Oficial' : '✓ RENIEC Oficial')
           setDocBadge(srcText)
+          setErrorMsg('')
         } else {
-          setDocBadge('No encontrado en padrón')
+          setClienteRazonSocial('')
+          setClienteDireccion('')
+          setDocBadge('✗ No encontrado en padrón')
         }
+      } else {
+        setClienteRazonSocial('')
+        setClienteDireccion('')
+        setDocBadge('✗ Error en búsqueda')
       }
     } catch (err) {
       console.error('Error consultando RUC/DNI:', err)
@@ -124,13 +198,13 @@ export default function NewInvoicePage() {
 
   // Auto-consulta al completar 8 u 11 dígitos
   useEffect(() => {
-    if (clienteNumDoc.length === 8 || clienteNumDoc.length === 11) {
+    if (clienteTipoDoc !== '0' && clienteNumDoc !== '00000000' && (clienteNumDoc.length === 8 || clienteNumDoc.length === 11)) {
       const timer = setTimeout(() => {
         handleConsultarDoc(clienteNumDoc)
       }, 400)
       return () => clearTimeout(timer)
     }
-  }, [clienteNumDoc])
+  }, [clienteNumDoc, clienteTipoDoc])
 
   // Agregar Ítem a la lista
   const handleAddItem = () => {
@@ -165,9 +239,19 @@ export default function NewInvoicePage() {
     setNewDesc('')
     setNewPrecio('')
     setNewCantidad('1')
+    fetchCorrelativo()
   }
 
   const handleRemoveItem = (index: number) => {
+    setItems(items.filter((_, i) => i !== index))
+  }
+
+  const handleEditItem = (index: number) => {
+    const item = items[index]
+    setNewDesc(item.descripcion)
+    setNewPrecio(item.precio_unitario.toFixed(2))
+    setNewCantidad(item.cantidad.toString())
+    setModoIgv('INC')
     setItems(items.filter((_, i) => i !== index))
   }
 
@@ -188,8 +272,17 @@ export default function NewInvoicePage() {
 
   // 1. Abrir Modal en Modo Vista Previa
   const handleAbrirPreview = () => {
+    // 1. Validaciones
+    if (tipoComprobante === '01' && (clienteNumDoc.length !== 11 || docBadge?.startsWith('✗'))) {
+      setErrorMsg('Para FACTURA ELECTRÓNICA es obligatorio ingresar un RUC válido de 11 dígitos y debe estar encontrado en el padrón.')
+      return
+    }
+    if (items.length === 0) {
+      setErrorMsg('Debe agregar al menos un producto o servicio.')
+      return
+    }
     if (boletaAlerta700) {
-      setErrorMsg('Exigencia SUNAT: Para Boletas de Venta mayores a S/ 700.00 es obligatorio identificar al comprador (DNI / RUC y Nombre).')
+      setErrorMsg('Norma SUNAT: El total supera los S/ 700.00. Es obligatorio registrar el DNI/RUC y Nombre completo del comprador.')
       window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
@@ -331,7 +424,7 @@ export default function NewInvoicePage() {
         </div>
 
         {/* Card Datos del Emisor (Tu Empresa) */}
-        <div className="bg-slate-900/40 border border-slate-800/80 p-4 rounded-xl flex items-center justify-between">
+        <div className="bg-slate-900/40 border border-slate-800/80 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 bg-indigo-500/10 text-indigo-400 rounded-lg flex items-center justify-center border border-indigo-500/20">
               <Building className="h-5 w-5" />
@@ -363,13 +456,6 @@ export default function NewInvoicePage() {
           </div>
         )}
 
-        {boletaAlerta700 && (
-          <div className="bg-amber-950/60 border border-amber-800 text-amber-300 p-4 rounded-xl text-xs flex items-center gap-3">
-            <ShieldAlert className="h-5 w-5 text-amber-400 shrink-0" />
-            <span><b>Norma SUNAT:</b> El total supera los S/ 700.00. Es obligatorio registrar el DNI/RUC y Nombre completo del comprador.</span>
-          </div>
-        )}
-
         {/* Clic 1: Datos del Cliente / Receptor */}
         <section className="bg-slate-900/60 border border-slate-800 backdrop-blur-md p-6 rounded-2xl space-y-4">
           <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
@@ -379,9 +465,11 @@ export default function NewInvoicePage() {
             </div>
 
             {docBadge && (
-              <span className="text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full flex items-center gap-1">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                {docBadge}
+              <span className={`text-xs font-bold border px-2.5 py-1 rounded-full flex items-center gap-1 ${
+                docBadge.startsWith('✗') ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+              }`}>
+                {docBadge.startsWith('✗') ? <ShieldAlert className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                {docBadge.replace(/[✓✗]\s/, '')}
               </span>
             )}
           </div>
@@ -391,16 +479,16 @@ export default function NewInvoicePage() {
               <label className="block text-xs font-semibold text-slate-400 mb-1">Tipo Documento</label>
               <select
                 value={clienteTipoDoc}
-                onChange={(e) => setClienteTipoDoc(e.target.value)}
+                onChange={(e) => handleSelectTipoDoc(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none"
               >
                 {tipoComprobante === '01' ? (
                   <option value="6">RUC (Obligatorio en Facturas)</option>
                 ) : (
                   <>
+                    <option value="0">Sin Documento (Clientes Varios)</option>
                     <option value="1">DNI (Persona Natural)</option>
                     <option value="6">RUC (Empresa)</option>
-                    <option value="0">Sin Documento (Clientes Varios)</option>
                   </>
                 )}
               </select>
@@ -412,19 +500,22 @@ export default function NewInvoicePage() {
                 <input
                   type="text"
                   value={clienteNumDoc}
-                  onChange={(e) => setClienteNumDoc(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-3 pr-10 py-2 text-sm text-white focus:border-indigo-500 outline-none font-mono"
-                  placeholder={clienteTipoDoc === '6' ? '20601234567' : '45678912'}
+                  onChange={(e) => handleNumDocChange(e.target.value)}
+                  disabled={clienteTipoDoc === '0'}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-3 pr-10 py-2 text-sm text-white focus:border-indigo-500 outline-none font-mono disabled:opacity-50 disabled:bg-slate-900/50"
+                  placeholder={clienteTipoDoc === '6' ? '20601234567' : clienteTipoDoc === '1' ? '45678912' : '00000000'}
                 />
-                <button
-                  type="button"
-                  onClick={() => handleConsultarDoc(clienteNumDoc)}
-                  disabled={isSearchingDoc}
-                  className="absolute right-2 text-slate-400 hover:text-indigo-400 p-1"
-                  title="Consultar en SUNAT/RENIEC"
-                >
-                  {isSearchingDoc ? <Loader2 className="h-4 w-4 animate-spin text-indigo-400" /> : <Search className="h-4 w-4" />}
-                </button>
+                {clienteTipoDoc !== '0' && (
+                  <button
+                    type="button"
+                    onClick={() => handleConsultarDoc(clienteNumDoc)}
+                    disabled={isSearchingDoc}
+                    className="absolute right-2 text-slate-400 hover:text-indigo-400 p-1"
+                    title="Consultar en SUNAT/RENIEC"
+                  >
+                    {isSearchingDoc ? <Loader2 className="h-4 w-4 animate-spin text-indigo-400" /> : <Search className="h-4 w-4" />}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -434,7 +525,8 @@ export default function NewInvoicePage() {
                 type="text"
                 value={clienteRazonSocial}
                 onChange={(e) => setClienteRazonSocial(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none"
+                disabled={clienteTipoDoc === '0'}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none disabled:opacity-50 disabled:bg-slate-900/50"
                 placeholder="Razón Social del Cliente"
               />
             </div>
@@ -445,7 +537,8 @@ export default function NewInvoicePage() {
                 type="text"
                 value={clienteDireccion}
                 onChange={(e) => setClienteDireccion(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none"
+                disabled={clienteTipoDoc === '0'}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none disabled:opacity-50 disabled:bg-slate-900/50"
                 placeholder="Av. Principal 123"
               />
             </div>
@@ -484,7 +577,7 @@ export default function NewInvoicePage() {
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  Sin IGV (Valor Venta)
+                  Sin IGV
                 </button>
               </div>
             )}
@@ -521,7 +614,7 @@ export default function NewInvoicePage() {
             {/* Campo Precio/Monto */}
             <div className="sm:col-span-2">
               <label className="block text-[10px] uppercase font-semibold text-slate-400 mb-1">
-                {tipoComprobante === '01' ? (modoIgv === 'SIN' ? 'Monto Sin IGV (S/)' : 'Monto Inc. IGV (S/)') : 'Precio Inc. IGV (S/)'}
+                Monto S/
               </label>
               <input
                 type="number"
@@ -571,6 +664,14 @@ export default function NewInvoicePage() {
                         S/ {totalItem.toFixed(2)}
                       </td>
                       <td className="py-2.5 px-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleEditItem(idx)}
+                          className="text-slate-500 hover:text-indigo-400 p-1 transition-colors mr-1"
+                          title="Editar ítem"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleRemoveItem(idx)}
@@ -694,7 +795,10 @@ export default function NewInvoicePage() {
       {modalOpen && comprobanteEmitido && (
         <TicketModal
           isOpen={modalOpen}
-          onClose={() => setModalOpen(false)}
+          onClose={() => {
+            setModalOpen(false)
+            if (!isPreview) resetForm()
+          }}
           isPreview={isPreview}
           isEmitting={isEmitting}
           onConfirmEmit={handleConfirmarEmitir}

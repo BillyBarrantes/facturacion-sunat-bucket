@@ -48,7 +48,7 @@ def get_fallback_company_id() -> str:
             return str(row[0])
     except Exception:
         pass
-    return "e304d7cb-0b4e-49ab-8cfc-ea483b5d329f"
+    return "56571107-7f7b-47bf-8d2f-4c53fddb6a76"
 
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security_scheme)) -> Dict[str, Any]:

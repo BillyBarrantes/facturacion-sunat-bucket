@@ -54,7 +54,7 @@ export default function HistoryPage() {
       montoTotal: c.importe_total,
       igv: c.importe_total - (c.importe_total / 1.18),
       hashCpe: c.hash_cpe || 'EC3CfOGm+qqj4kQWP4KPL4TtKpGj',
-      items: [{ descripcion: 'OPERACIÓN DE VENTA / SERVICIO', cantidad: 1, total: c.importe_total }]
+      items: c.items || [{ descripcion: 'OPERACIÓN DE VENTA / SERVICIO', cantidad: 1, total: c.importe_total }]
     })
     setIsModalOpen(true)
   }
