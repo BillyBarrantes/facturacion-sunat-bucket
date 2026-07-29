@@ -45,6 +45,7 @@ class EmitirComprobanteSchema(BaseModel):
     cliente_tipo_doc: str = Field(..., example="6") # 6: RUC, 1: DNI
     cliente_num_doc: str = Field(..., example="20600000001")
     cliente_razon_social: str = Field(..., example="CLIENTE DE PRUEBA S.A.C.")
+    cliente_direccion: Optional[str] = Field("", example="AV. LOS OLIVOS 456 - LIMA")
     moneda: str = Field("PEN", example="PEN")
     metodo_pago: str = Field("EFECTIVO", example="EFECTIVO")
     items: List[DetalleItemSchema]
@@ -139,7 +140,8 @@ def emitir_comprobante(
     cliente_data = {
         "tipo_doc": payload.cliente_tipo_doc,
         "num_doc": payload.cliente_num_doc,
-        "razon_social": payload.cliente_razon_social
+        "razon_social": payload.cliente_razon_social,
+        "direccion": payload.cliente_direccion or ""
     }
 
     # 3. Construir XML UBL 2.1
@@ -163,6 +165,17 @@ def emitir_comprobante(
 
     # 6. Registrar en Base de Datos PostgreSQL / Supabase
     try:
+        # Guardar / Actualizar cliente en la libreta de clientes del Tenant
+        cur.execute(
+            """
+            INSERT INTO public.clientes (company_id, tipo_doc, num_doc, razon_social, direccion)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (company_id, num_doc) DO UPDATE 
+            SET razon_social = EXCLUDED.razon_social, direccion = EXCLUDED.direccion;
+            """,
+            (company_id, payload.cliente_tipo_doc, payload.cliente_num_doc, payload.cliente_razon_social, payload.cliente_direccion or "")
+        )
+
         cur.execute(
             """
             INSERT INTO public.comprobantes 

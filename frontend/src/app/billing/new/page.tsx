@@ -3,17 +3,23 @@
 import React, { useState, useEffect } from 'react'
 import Navbar from '@/components/navbar'
 import TicketModal from '@/components/ticket_modal'
-import { UserCheck, ShoppingBag, Send, Plus, Trash2, ShieldAlert, Sparkles, Search, CheckCircle2, Loader2 } from 'lucide-react'
+import { UserCheck, ShoppingBag, Send, Plus, Trash2, ShieldAlert, Sparkles, Search, CheckCircle2, Loader2, Building } from 'lucide-react'
 
 export default function NewInvoicePage() {
   const [tipoComprobante, setTipoComprobante] = useState('01') // 01: Factura, 03: Boleta
   const [serie, setSerie] = useState('F001')
   const [numero, setNumero] = useState(1)
   
-  // Paso 1: Cliente
+  // Datos del Emisor
+  const [emisorRuc, setEmisorRuc] = useState('20000000001')
+  const [emisorRazonSocial, setEmisorRazonSocial] = useState('EMPRESA MYPE DE PRUEBA S.A.C.')
+  const [emisorDireccion, setEmisorDireccion] = useState('AV. PRINCIPAL 123 - LIMA')
+
+  // Paso 1: Cliente / Receptor
   const [clienteTipoDoc, setClienteTipoDoc] = useState('6') // 6: RUC, 1: DNI
   const [clienteNumDoc, setClienteNumDoc] = useState('20600000001')
   const [clienteRazonSocial, setClienteRazonSocial] = useState('CLIENTE DE PRUEBA S.A.C.')
+  const [clienteDireccion, setClienteDireccion] = useState('AV. LOS OLIVOS 456 - LIMA')
   
   // Consulta de RUC/DNI en vivo
   const [isSearchingDoc, setIsSearchingDoc] = useState(false)
@@ -40,6 +46,12 @@ export default function NewInvoicePage() {
     } else {
       setSerie('B001')
       setClienteTipoDoc('1')
+      // Para Boletas <= S/ 700.00 permitimos Clientes Varios por defecto si no ingresa DNI
+      if (!clienteNumDoc || clienteNumDoc === '20600000001') {
+        setClienteNumDoc('00000000')
+        setClienteRazonSocial('CLIENTES VARIOS')
+        setClienteDireccion('')
+      }
     }
   }
 
@@ -65,6 +77,9 @@ export default function NewInvoicePage() {
         const data = await response.json()
         if (data.found && data.razon_social) {
           setClienteRazonSocial(data.razon_social)
+          if (data.direccion) {
+            setClienteDireccion(data.direccion)
+          }
           const srcText = data.source === 'DATABASE' ? '✓ Base de Datos' : (data.tipo_doc === '6' ? '✓ SUNAT Oficial' : '✓ RENIEC Oficial')
           setDocBadge(srcText)
         } else {
@@ -113,7 +128,20 @@ export default function NewInvoicePage() {
   const totalGravado = totalInclinclsive / 1.18
   const totalIgv = totalInclinclsive - totalGravado
 
+  // Regla SUNAT Boleta > S/ 700.00
+  const boletaAlerta700 = tipoComprobante === '03' && totalInclinclsive > 700.0 && (!clienteNumDoc || clienteNumDoc === '00000000')
+
   const handleEmitir = async () => {
+    if (boletaAlerta700) {
+      setErrorMsg('Norma SUNAT: Para Boletas de Venta mayores a S/ 700.00 es obligatorio registrar los nombres y documento de identidad del comprador.')
+      return
+    }
+
+    if (tipoComprobante === '01' && clienteTipoDoc !== '6') {
+      setErrorMsg('Norma SUNAT: Las Facturas únicamente se pueden emitir a receptores con RUC de 11 dígitos para crédito fiscal.')
+      return
+    }
+
     setIsSubmitting(true)
     setErrorMsg('')
 
@@ -134,6 +162,7 @@ export default function NewInvoicePage() {
           cliente_tipo_doc: clienteTipoDoc,
           cliente_num_doc: clienteNumDoc,
           cliente_razon_social: clienteRazonSocial,
+          cliente_direccion: clienteDireccion,
           moneda: 'PEN',
           metodo_pago: 'EFECTIVO',
           items: items
@@ -148,19 +177,19 @@ export default function NewInvoicePage() {
 
       setComprobanteEmitido({
         serieNumero: `${serie}-${String(numero).padStart(8, '0')}`,
-        tipoComprobante: tipoComprobante === '01' ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA',
+        tipoComprobanteNombre: tipoComprobante === '01' ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA',
         fechaEmision: new Date().toLocaleDateString('es-PE'),
-        emisorRazonSocial: 'EMPRESA MYPE DE PRUEBA S.A.C.',
-        emisorRuc: '20000000001',
-        emisorDireccion: 'AV. PRINCIPAL 123 - LIMA',
+        emisorRazonSocial: emisorRazonSocial,
+        emisorRuc: emisorRuc,
+        emisorDireccion: emisorDireccion,
         clienteRazonSocial: clienteRazonSocial,
         clienteRuc: clienteNumDoc,
+        clienteDireccion: clienteDireccion,
         items: items,
         opGravada: totalGravado,
         igv: totalIgv,
         total: totalInclinclsive,
-        hashCpe: data.hash_cpe || 'A1B2C3D4E5F67890=',
-        qrCodeBase64: data.qr_code_base64
+        hashCpe: data.hash_cpe || 'A1B2C3D4E5F67890='
       })
 
       setModalOpen(true)
@@ -215,6 +244,28 @@ export default function NewInvoicePage() {
           </div>
         </div>
 
+        {/* Card Datos del Emisor (SUNAT Exigencia) */}
+        <div className="bg-slate-900/40 border border-slate-800/80 p-4 rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 bg-indigo-500/10 text-indigo-400 rounded-lg flex items-center justify-center border border-indigo-500/20">
+              <Building className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Datos del Emisor (Tu Empresa)</div>
+              <div className="text-sm font-bold text-white flex items-center gap-2">
+                <span>{emisorRazonSocial}</span>
+                <span className="text-indigo-400 font-mono text-xs">(RUC: {emisorRuc})</span>
+              </div>
+              <div className="text-xs text-slate-500">{emisorDireccion}</div>
+            </div>
+          </div>
+          <div className="text-right hidden sm:block">
+            <span className="text-xs font-mono font-bold text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-md border border-indigo-500/20">
+              {tipoComprobante === '01' ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA'} {serie}-{String(numero).padStart(8, '0')}
+            </span>
+          </div>
+        </div>
+
         {errorMsg && (
           <div className="bg-rose-950/60 border border-rose-800 text-rose-300 p-4 rounded-xl text-sm flex items-center gap-3">
             <ShieldAlert className="h-5 w-5 text-rose-400 shrink-0" />
@@ -222,12 +273,19 @@ export default function NewInvoicePage() {
           </div>
         )}
 
-        {/* Clic 1: Datos del Cliente */}
+        {boletaAlerta700 && (
+          <div className="bg-amber-950/60 border border-amber-800 text-amber-300 p-4 rounded-xl text-xs flex items-center gap-3">
+            <ShieldAlert className="h-5 w-5 text-amber-400 shrink-0" />
+            <span><b>Exigencia SUNAT:</b> El importe total supera S/ 700.00. Es obligatorio registrar el DNI/RUC y Nombre completo del comprador para emitir esta Boleta de Venta.</span>
+          </div>
+        )}
+
+        {/* Clic 1: Datos del Cliente / Receptor */}
         <section className="bg-slate-900/60 border border-slate-800 backdrop-blur-md p-6 rounded-2xl space-y-4">
           <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
             <div className="flex items-center gap-2 text-indigo-400 font-semibold text-sm">
               <UserCheck className="h-4 w-4" />
-              <span>Clic 1: Cliente & Documento (Autocompletado SUNAT / RENIEC)</span>
+              <span>Clic 1: Cliente / Receptor (Autocompletado SUNAT / RENIEC)</span>
             </div>
 
             {docBadge && (
@@ -238,7 +296,7 @@ export default function NewInvoicePage() {
             )}
           </div>
 
-          <div className="grid sm:grid-cols-3 gap-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1">Tipo de Documento</label>
               <select
@@ -248,11 +306,12 @@ export default function NewInvoicePage() {
               >
                 <option value="6">RUC (Empresa)</option>
                 <option value="1">DNI (Persona Natural)</option>
+                <option value="0">Sin Documento (Clientes Varios)</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Número de Doc (RUC/DNI)</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Número (RUC / DNI)</label>
               <div className="relative flex items-center">
                 <input
                   type="text"
@@ -274,13 +333,24 @@ export default function NewInvoicePage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Razón Social / Nombre Completo</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Nombre / Razón Social</label>
               <input
                 type="text"
                 value={clienteRazonSocial}
                 onChange={(e) => setClienteRazonSocial(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none"
-                placeholder="Razón Social del Cliente"
+                placeholder="Razón Social o Nombres"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Dirección Fiscal (Si aplica)</label>
+              <input
+                type="text"
+                value={clienteDireccion}
+                onChange={(e) => setClienteDireccion(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none"
+                placeholder="Av. Principal 123"
               />
             </div>
           </div>
@@ -291,7 +361,7 @@ export default function NewInvoicePage() {
           <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
             <div className="flex items-center gap-2 text-indigo-400 font-semibold text-sm">
               <ShoppingBag className="h-4 w-4" />
-              <span>Clic 2: Productos y Servicios a Cobrar</span>
+              <span>Clic 2: Productos y Servicios a Cobrar (Numeración & Detalle)</span>
             </div>
           </div>
 
@@ -302,7 +372,7 @@ export default function NewInvoicePage() {
                 type="text"
                 value={newDesc}
                 onChange={(e) => setNewDesc(e.target.value)}
-                placeholder="Descripción del Producto / Servicio"
+                placeholder="Descripción del Bien Vendido o Servicio Prestado"
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none"
               />
             </div>
@@ -332,49 +402,55 @@ export default function NewInvoicePage() {
               <thead className="bg-slate-950 text-slate-400 uppercase tracking-wider">
                 <tr>
                   <th className="py-2.5 px-3">Código</th>
-                  <th className="py-2.5 px-3">Descripción</th>
+                  <th className="py-2.5 px-3">Descripción del Bien / Servicio</th>
                   <th className="py-2.5 px-3 text-right">Cant.</th>
-                  <th className="py-2.5 px-3 text-right">P. Unit</th>
-                  <th className="py-2.5 px-3 text-right">Total</th>
+                  <th className="py-2.5 px-3 text-right">Valor U. (Sin IGV)</th>
+                  <th className="py-2.5 px-3 text-right">Precio U. (Inc. IGV)</th>
+                  <th className="py-2.5 px-3 text-right">Importe Total</th>
                   <th className="py-2.5 px-3 text-center">Acción</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800 text-slate-300">
-                {items.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-slate-800/30">
-                    <td className="py-2.5 px-3 font-mono text-slate-400">{item.codigo}</td>
-                    <td className="py-2.5 px-3 font-medium text-white">{item.descripcion}</td>
-                    <td className="py-2.5 px-3 text-right font-mono">{item.cantidad}</td>
-                    <td className="py-2.5 px-3 text-right font-mono">S/ {item.precio_unitario.toFixed(2)}</td>
-                    <td className="py-2.5 px-3 text-right font-mono text-emerald-400 font-bold">
-                      S/ {(item.precio_unitario * item.cantidad).toFixed(2)}
-                    </td>
-                    <td className="py-2.5 px-3 text-center">
-                      <button
-                        onClick={() => handleRemoveItem(idx)}
-                        className="text-slate-500 hover:text-rose-400 p-1"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {items.map((item, idx) => {
+                  const valorU = item.precio_unitario / 1.18
+                  const totalItem = item.precio_unitario * item.cantidad
+                  return (
+                    <tr key={idx} className="hover:bg-slate-800/30">
+                      <td className="py-2.5 px-3 font-mono text-slate-400">{item.codigo}</td>
+                      <td className="py-2.5 px-3 font-medium text-white">{item.descripcion}</td>
+                      <td className="py-2.5 px-3 text-right font-mono">{item.cantidad}</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-slate-400">S/ {valorU.toFixed(2)}</td>
+                      <td className="py-2.5 px-3 text-right font-mono">S/ {item.precio_unitario.toFixed(2)}</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-emerald-400 font-bold">
+                        S/ {totalItem.toFixed(2)}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <button
+                          onClick={() => handleRemoveItem(idx)}
+                          className="text-slate-500 hover:text-rose-400 p-1"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
 
-          {/* Resumen Totales */}
+          {/* Resumen Totales y Desglose IGV 18% */}
           <div className="flex flex-col items-end pt-3 border-t border-slate-800/80 text-xs space-y-1">
-            <div className="flex justify-between w-48 text-slate-400">
-              <span>Op. Gravada:</span>
+            <div className="flex justify-between w-56 text-slate-400">
+              <span>Op. Gravada (Valor Venta):</span>
               <span className="font-mono">S/ {totalGravado.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between w-48 text-slate-400">
+            <div className="flex justify-between w-56 text-slate-400">
               <span>IGV (18%):</span>
               <span className="font-mono">S/ {totalIgv.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between w-48 text-sm font-bold text-white pt-1 border-t border-slate-800">
-              <span>Total Importe:</span>
+            <div className="flex justify-between w-56 text-sm font-bold text-white pt-1 border-t border-slate-800">
+              <span>IMPORTE TOTAL:</span>
               <span className="font-mono text-emerald-400">S/ {totalInclinclsive.toFixed(2)}</span>
             </div>
           </div>
@@ -388,7 +464,7 @@ export default function NewInvoicePage() {
             className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold py-4 rounded-xl shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 text-base transition-all disabled:opacity-50"
           >
             <Send className="h-5 w-5" />
-            <span>{isSubmitting ? 'Firmando y enviando a SUNAT...' : 'Clic 3: EMITIR Y FIRMAR COMPROBANTE HASTA SUNAT'}</span>
+            <span>{isSubmitting ? 'Firmando y enviando a SUNAT...' : `Clic 3: EMITIR Y FIRMAR ${tipoComprobante === '01' ? 'FACTURA' : 'BOLETA'} ${serie}-${String(numero).padStart(8, '0')}`}</span>
           </button>
         </div>
 
@@ -400,11 +476,18 @@ export default function NewInvoicePage() {
           isOpen={modalOpen}
           onClose={() => setModalOpen(false)}
           comprobante={{
+            tipoComprobanteNombre: comprobanteEmitido.tipoComprobanteNombre,
             serieNumero: comprobanteEmitido.serieNumero,
+            fechaEmision: comprobanteEmitido.fechaEmision,
+            emisorRazonSocial: comprobanteEmitido.emisorRazonSocial,
+            emisorRuc: comprobanteEmitido.emisorRuc,
+            emisorDireccion: comprobanteEmitido.emisorDireccion,
             cliente: comprobanteEmitido.clienteRazonSocial,
             documento: comprobanteEmitido.clienteRuc,
-            montoTotal: comprobanteEmitido.total,
+            clienteDireccion: comprobanteEmitido.clienteDireccion,
+            opGravada: comprobanteEmitido.opGravada,
             igv: comprobanteEmitido.igv,
+            montoTotal: comprobanteEmitido.total,
             hashCpe: comprobanteEmitido.hashCpe,
             items: comprobanteEmitido.items.map((i: any) => ({
               descripcion: i.descripcion,

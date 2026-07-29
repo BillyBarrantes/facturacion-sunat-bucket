@@ -7,11 +7,18 @@ interface TicketModalProps {
   isOpen: boolean
   onClose: () => void
   comprobante: {
+    tipoComprobanteNombre?: string
     serieNumero: string
+    fechaEmision?: string
+    emisorRazonSocial?: string
+    emisorRuc?: string
+    emisorDireccion?: string
     cliente: string
     documento: string
-    montoTotal: number
+    clienteDireccion?: string
+    opGravada?: number
     igv: number
+    montoTotal: number
     hashCpe: string
     items: Array<{ descripcion: string; cantidad: number; total: number }>
   }
@@ -26,14 +33,21 @@ export default function TicketModal({ isOpen, onClose, comprobante }: TicketModa
 
   const handleWhatsApp = () => {
     const text = encodeURIComponent(
-      `*COMPROBANTE ELECTRÓNICO SUNAT*\n` +
+      `*${comprobante.tipoComprobanteNombre || 'COMPROBANTE ELECTRÓNICO'}*\n` +
       `Serie: ${comprobante.serieNumero}\n` +
+      `Fecha: ${comprobante.fechaEmision || new Date().toLocaleDateString('es-PE')}\n` +
       `Cliente: ${comprobante.cliente}\n` +
       `Total: S/ ${comprobante.montoTotal.toFixed(2)}\n` +
       `Estado: ACEPTADO POR SUNAT`
     )
     window.open(`https://wa.me/?text=${text}`, '_blank')
   }
+
+  const emisorNombre = comprobante.emisorRazonSocial || 'EMPRESA MYPE DE PRUEBA S.A.C.'
+  const emisorRuc = comprobante.emisorRuc || '20000000001'
+  const emisorDir = comprobante.emisorDireccion || 'AV. TRIBUTARIA 123 - LIMA'
+  const tipoTitulo = comprobante.tipoComprobanteNombre || (comprobante.serieNumero.startsWith('F') ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA')
+  const fecha = comprobante.fechaEmision || new Date().toLocaleDateString('es-PE')
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
@@ -50,24 +64,33 @@ export default function TicketModal({ isOpen, onClose, comprobante }: TicketModa
           <div className="h-12 w-12 bg-emerald-500/10 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-3 border border-emerald-500/20">
             <CheckCircle2 className="h-6 w-6" />
           </div>
-          <h3 className="text-xl font-bold text-white">Comprobante Aceptado por SUNAT</h3>
-          <p className="text-slate-400 text-xs mt-1">Firma Digital & CDR Registrados</p>
+          <h3 className="text-xl font-bold text-white">Comprobante Registrado en SUNAT</h3>
+          <p className="text-slate-400 text-xs mt-1">Firma Digital & CDR Aceptado</p>
         </div>
 
         {/* Ticket Thermal View (Printable Section) */}
         <div className="bg-white text-slate-900 p-5 rounded-xl text-xs font-mono mb-6 shadow-inner print:block" id="ticket-printable">
-          <div className="text-center font-bold text-sm mb-1">EMPRESA MYPE DE PRUEBA S.A.C.</div>
-          <div className="text-center">RUC: 20000000001</div>
-          <div className="text-center text-[10px] text-slate-600">AV. TRIBUTARIA 123 - LIMA</div>
+          {/* DATOS DEL EMISOR */}
+          <div className="text-center font-bold text-sm mb-1">{emisorNombre}</div>
+          <div className="text-center font-bold">RUC: {emisorRuc}</div>
+          <div className="text-center text-[10px] text-slate-600">{emisorDir}</div>
           <div className="border-b border-dashed border-slate-300 my-2"></div>
           
+          {/* IDENTIFICACIÓN DEL DOCUMENTO */}
+          <div className="text-center font-bold text-xs">{tipoTitulo}</div>
           <div className="text-center font-bold text-sm">{comprobante.serieNumero}</div>
+          <div className="text-center text-[10px] text-slate-600">Fecha de Emisión: {fecha}</div>
           <div className="border-b border-dashed border-slate-300 my-2"></div>
           
-          <div><b>Cliente:</b> {comprobante.cliente}</div>
-          <div><b>Doc:</b> {comprobante.documento}</div>
+          {/* DATOS DEL CLIENTE / RECEPTOR */}
+          <div><b>Cliente / Receptor:</b> {comprobante.cliente}</div>
+          <div><b>Documento (RUC/DNI):</b> {comprobante.documento}</div>
+          {comprobante.clienteDireccion && (
+            <div><b>Dirección Fiscal:</b> {comprobante.clienteDireccion}</div>
+          )}
           <div className="border-b border-dashed border-slate-300 my-2"></div>
 
+          {/* DETALLE DE LA OPERACIÓN */}
           <table className="w-full text-left my-2">
             <thead>
               <tr className="border-b border-slate-200">
@@ -87,14 +110,25 @@ export default function TicketModal({ isOpen, onClose, comprobante }: TicketModa
             </tbody>
           </table>
 
+          {/* TOTALES Y MONTOS */}
           <div className="border-b border-dashed border-slate-300 my-2"></div>
+          {comprobante.opGravada !== undefined && (
+            <div className="flex justify-between text-[11px]">
+              <span>Op. Gravada:</span>
+              <span>S/ {comprobante.opGravada.toFixed(2)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-[11px]">
+            <span>IGV (18%):</span>
+            <span>S/ {comprobante.igv.toFixed(2)}</span>
+          </div>
           <div className="flex justify-between font-bold text-sm mt-1">
-            <span>TOTAL:</span>
+            <span>IMPORTE TOTAL:</span>
             <span>S/ {comprobante.montoTotal.toFixed(2)}</span>
           </div>
 
-          <div className="text-center text-[9px] text-slate-500 mt-4">
-            Hash: {comprobante.hashCpe}
+          <div className="text-center text-[9px] text-slate-500 mt-4 break-all">
+            Hash CPE: {comprobante.hashCpe}
           </div>
         </div>
 
