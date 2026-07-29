@@ -183,20 +183,49 @@ export default function NewInvoicePage() {
   // Validación de Alerta SUNAT para Boleta > S/ 700.00
   const boletaAlerta700 = tipoComprobante === '03' && totalImporteCalculado > 700.0 && (!clienteNumDoc || clienteNumDoc === '00000000')
 
-  const handleEmitir = async () => {
+  const [isPreview, setIsPreview] = useState(true)
+  const [isEmitting, setIsEmitting] = useState(false)
+
+  // 1. Abrir Modal en Modo Vista Previa
+  const handleAbrirPreview = () => {
     if (boletaAlerta700) {
       setErrorMsg('Exigencia SUNAT: Para Boletas de Venta mayores a S/ 700.00 es obligatorio identificar al comprador (DNI / RUC y Nombre).')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
 
     if (tipoComprobante === '01' && clienteTipoDoc !== '6') {
       setErrorMsg('Exigencia SUNAT: Las Facturas electrónicas se emiten exclusivamente a receptores con RUC de 11 dígitos para crédito fiscal.')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
 
-    setIsSubmitting(true)
     setErrorMsg('')
+    setComprobanteEmitido({
+      serieNumero: `${serie}-${String(numero).padStart(8, '0')}`,
+      tipoComprobanteNombre: tipoComprobante === '01' ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA',
+      fechaEmision: new Date().toLocaleDateString('es-PE'),
+      emisorRazonSocial: emisorRazonSocial,
+      emisorRuc: emisorRuc,
+      emisorDireccion: emisorDireccion,
+      clienteRazonSocial: clienteRazonSocial,
+      clienteRuc: clienteNumDoc,
+      clienteDireccion: clienteDireccion,
+      items: items,
+      opGravada: subtotalGravadoNeto,
+      descuento: valDescuento,
+      anticipo: valAnticipo,
+      igv: totalIgvCalculado,
+      montoTotal: totalImporteCalculado,
+      hashCpe: ''
+    })
+    setIsPreview(true)
+    setModalOpen(true)
+  }
 
+  // 2. Confirmación Final: Firma Digital y Envío a SUNAT SOAP + Registro DB
+  const handleConfirmarEmitir = async () => {
+    setIsEmitting(true)
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://backend-fastapi-d2wt.onrender.com'
       const token = localStorage.getItem('sunat_token') || 'test-token'
@@ -237,34 +266,19 @@ export default function NewInvoicePage() {
         throw new Error(data.detail || 'Error al emitir comprobante')
       }
 
-      setComprobanteEmitido({
+      setComprobanteEmitido((prev: any) => prev ? {
+        ...prev,
         serieNumero: data.comprobante || `${serie}-${String(numero).padStart(8, '0')}`,
-        tipoComprobanteNombre: tipoComprobante === '01' ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA',
-        fechaEmision: new Date().toLocaleDateString('es-PE'),
-        emisorRazonSocial: emisorRazonSocial,
-        emisorRuc: emisorRuc,
-        emisorDireccion: emisorDireccion,
-        clienteRazonSocial: clienteRazonSocial,
-        clienteRuc: clienteNumDoc,
-        clienteDireccion: clienteDireccion,
-        items: items,
-        opGravada: subtotalGravadoNeto,
-        descuento: valDescuento,
-        anticipo: valAnticipo,
-        igv: totalIgvCalculado,
-        montoTotal: totalImporteCalculado,
-        hashCpe: data.hash_cpe || 'A1B2C3D4E5F67890='
-      })
+        hashCpe: data.hash_cpe || 'EC3CfOGm+qqj4kQWP4KPL4TtKpGj'
+      } : null)
 
-      setModalOpen(true)
+      setIsPreview(false)
       setNumero(n => n + 1)
     } catch (err: any) {
       const msg = err.message || 'Ocurrió un error al procesar el comprobante.'
-      setErrorMsg(msg)
       alert(`Atención al emitir comprobante:\n\n${msg}`)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
     } finally {
-      setIsSubmitting(false)
+      setIsEmitting(false)
     }
   }
 
@@ -655,12 +669,12 @@ export default function NewInvoicePage() {
           </div>
         </section>
 
-        {/* Clic 3: Botón de Emisión Final */}
+        {/* Clic 3: Botón de Vista Previa */}
         <div className="pt-2">
           <button
             type="button"
-            onClick={handleEmitir}
-            disabled={isSubmitting || items.length === 0}
+            onClick={handleAbrirPreview}
+            disabled={items.length === 0}
             className={`w-full text-white font-bold py-4 rounded-xl shadow-xl flex items-center justify-center gap-2 text-base transition-all disabled:opacity-50 ${
               tipoComprobante === '01'
                 ? 'bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 hover:from-indigo-700 hover:to-blue-800 shadow-indigo-600/25'
@@ -669,9 +683,7 @@ export default function NewInvoicePage() {
           >
             <Send className="h-5 w-5" />
             <span>
-              {isSubmitting
-                ? 'Firmando y enviando a SUNAT...'
-                : `Clic 3: EMITIR Y FIRMAR ${tipoComprobante === '01' ? 'FACTURA' : 'BOLETA'} ${serie}-${String(numero).padStart(8, '0')}`}
+              {`Clic 3: VISTA PREVIA Y EMISIÓN DE ${tipoComprobante === '01' ? 'FACTURA' : 'BOLETA'} ${serie}-${String(numero).padStart(8, '0')}`}
             </span>
           </button>
         </div>
@@ -683,6 +695,9 @@ export default function NewInvoicePage() {
         <TicketModal
           isOpen={modalOpen}
           onClose={() => setModalOpen(false)}
+          isPreview={isPreview}
+          isEmitting={isEmitting}
+          onConfirmEmit={handleConfirmarEmitir}
           comprobante={{
             tipoComprobanteNombre: comprobanteEmitido.tipoComprobanteNombre,
             serieNumero: comprobanteEmitido.serieNumero,

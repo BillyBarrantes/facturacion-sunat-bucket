@@ -12,6 +12,42 @@ from app.services.doc_lookup import lookup_document
 
 router = APIRouter(prefix="/comprobantes", tags=["Comprobantes Electrónicos"])
 
+@router.get("")
+def listar_comprobantes(current_user: Dict[str, Any] = Depends(require_tenant)):
+    """Obtiene la lista de comprobantes emitidos por la empresa desde Supabase DB."""
+    company_id = current_user["company_id"]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            SELECT 
+                c.id, c.tipo_comprobante, c.serie, c.numero, c.fecha_emision,
+                c.moneda, c.importe_total, c.estado_sunat, c.hash_cpe
+            FROM public.comprobantes c
+            WHERE c.company_id = %s
+            ORDER BY c.created_at DESC;
+            """,
+            (company_id,)
+        )
+        rows = cur.fetchall()
+        comprobantes = []
+        for r in rows:
+            comprobantes.append({
+                "id": str(r[0]),
+                "tipo_comprobante": r[1],
+                "serie_numero": f"{r[2]}-{r[3]:08d}",
+                "fecha_emision": r[4].strftime('%d/%m/%Y %H:%M') if r[4] else "",
+                "moneda": r[5],
+                "importe_total": float(r[6]),
+                "estado_sunat": r[7],
+                "hash_cpe": r[8] or ""
+            })
+        return {"success": True, "comprobantes": comprobantes}
+    finally:
+        cur.close()
+        conn.close()
+
 @router.get("/consultar-doc/{num_doc}")
 def consultar_documento(
     num_doc: str,

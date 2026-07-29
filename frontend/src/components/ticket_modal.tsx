@@ -1,11 +1,14 @@
 'use client'
 
 import React from 'react'
-import { Printer, Share2, X, CheckCircle2 } from 'lucide-react'
+import { Printer, Share2, X, CheckCircle2, Eye, Send, Loader2 } from 'lucide-react'
 
 interface TicketModalProps {
   isOpen: boolean
   onClose: () => void
+  isPreview?: boolean
+  isEmitting?: boolean
+  onConfirmEmit?: () => void
   comprobante: {
     tipoComprobanteNombre?: string
     serieNumero: string
@@ -26,7 +29,14 @@ interface TicketModalProps {
   }
 }
 
-export default function TicketModal({ isOpen, onClose, comprobante }: TicketModalProps) {
+export default function TicketModal({
+  isOpen,
+  onClose,
+  isPreview = false,
+  isEmitting = false,
+  onConfirmEmit,
+  comprobante
+}: TicketModalProps) {
   if (!isOpen) return null
 
   const handlePrint = () => {
@@ -39,7 +49,7 @@ export default function TicketModal({ isOpen, onClose, comprobante }: TicketModa
       `Serie: ${comprobante.serieNumero}\n` +
       `Fecha: ${comprobante.fechaEmision || new Date().toLocaleDateString('es-PE')}\n` +
       `Cliente: ${comprobante.cliente}\n` +
-      `Total: S/ ${comprobante.montoTotal.toFixed(2)}\n` +
+      `Total: S/ ${(comprobante.montoTotal ?? 0).toFixed(2)}\n` +
       `Estado: ACEPTADO POR SUNAT`
     )
     window.open(`https://wa.me/?text=${text}`, '_blank')
@@ -52,10 +62,11 @@ export default function TicketModal({ isOpen, onClose, comprobante }: TicketModa
   const fecha = comprobante.fechaEmision || new Date().toLocaleDateString('es-PE')
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
         <button
           onClick={onClose}
+          disabled={isEmitting}
           className="absolute right-4 top-4 text-slate-400 hover:text-white transition-colors"
         >
           <X className="h-5 w-5" />
@@ -63,15 +74,33 @@ export default function TicketModal({ isOpen, onClose, comprobante }: TicketModa
 
         {/* Modal Header */}
         <div className="text-center mb-6">
-          <div className="h-12 w-12 bg-emerald-500/10 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-3 border border-emerald-500/20">
-            <CheckCircle2 className="h-6 w-6" />
-          </div>
-          <h3 className="text-xl font-bold text-white">Comprobante Registrado en SUNAT</h3>
-          <p className="text-slate-400 text-xs mt-1">Firma Digital & CDR Aceptado</p>
+          {isPreview ? (
+            <>
+              <div className="h-12 w-12 bg-amber-500/10 text-amber-400 rounded-full flex items-center justify-center mx-auto mb-3 border border-amber-500/20">
+                <Eye className="h-6 w-6" />
+              </div>
+              <h3 className="text-xl font-bold text-amber-400">Vista Previa de Comprobante</h3>
+              <p className="text-slate-400 text-xs mt-1">Revisa los datos antes de firmar y emitir a SUNAT</p>
+            </>
+          ) : (
+            <>
+              <div className="h-12 w-12 bg-emerald-500/10 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-3 border border-emerald-500/20">
+                <CheckCircle2 className="h-6 w-6" />
+              </div>
+              <h3 className="text-xl font-bold text-white">Comprobante Registrado en SUNAT</h3>
+              <p className="text-slate-400 text-xs mt-1">Firma Digital & CDR Aceptado Oficialmente</p>
+            </>
+          )}
         </div>
 
         {/* Ticket Thermal View (Printable Section) */}
-        <div className="bg-white text-slate-900 p-5 rounded-xl text-xs font-mono mb-6 shadow-inner print:block" id="ticket-printable">
+        <div className="bg-white text-slate-900 p-5 rounded-xl text-xs font-mono mb-6 shadow-inner print:block relative" id="ticket-printable">
+          {isPreview && (
+            <div className="bg-amber-100 border border-amber-300 text-amber-900 text-[10px] font-bold uppercase tracking-wider text-center py-1 rounded mb-3">
+              ⚠️ VISTA PREVIA SIN EMITIR A SUNAT
+            </div>
+          )}
+
           {/* DATOS DEL EMISOR */}
           <div className="text-center font-bold text-sm mb-1">{emisorNombre}</div>
           <div className="text-center font-bold">RUC: {emisorRuc}</div>
@@ -106,7 +135,7 @@ export default function TicketModal({ isOpen, onClose, comprobante }: TicketModa
                 <tr key={idx}>
                   <td>{item.cantidad}</td>
                   <td>{item.descripcion}</td>
-                  <td className="text-right font-bold">S/ {item.total.toFixed(2)}</td>
+                  <td className="text-right font-bold">S/ {(item.total ?? 0).toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -141,29 +170,61 @@ export default function TicketModal({ isOpen, onClose, comprobante }: TicketModa
             <span>S/ {(comprobante.montoTotal ?? 0).toFixed(2)}</span>
           </div>
 
-          <div className="text-center text-[9px] text-slate-500 mt-4 break-all">
-            Hash CPE: {comprobante.hashCpe}
-          </div>
+          {!isPreview && comprobante.hashCpe && (
+            <div className="text-center text-[9px] text-slate-500 mt-4 break-all">
+              Hash CPE: {comprobante.hashCpe}
+            </div>
+          )}
         </div>
 
         {/* Actions Bar */}
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={handlePrint}
-            className="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm transition-all"
-          >
-            <Printer className="h-4 w-4" />
-            <span>Imprimir Ticket</span>
-          </button>
-          
-          <button
-            onClick={handleWhatsApp}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm transition-all shadow-lg shadow-emerald-600/20"
-          >
-            <Share2 className="h-4 w-4" />
-            <span>WhatsApp</span>
-          </button>
-        </div>
+        {isPreview ? (
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={onClose}
+              disabled={isEmitting}
+              className="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm transition-all"
+            >
+              <span>✏️ Modificar</span>
+            </button>
+
+            <button
+              onClick={onConfirmEmit}
+              disabled={isEmitting}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm transition-all shadow-lg shadow-emerald-600/30"
+            >
+              {isEmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Emitiendo...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" />
+                  <span>Emitir a SUNAT</span>
+                </>
+              )}
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={handlePrint}
+              className="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm transition-all"
+            >
+              <Printer className="h-4 w-4" />
+              <span>Imprimir Ticket</span>
+            </button>
+            
+            <button
+              onClick={handleWhatsApp}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm transition-all shadow-lg shadow-emerald-600/20"
+            >
+              <Share2 className="h-4 w-4" />
+              <span>WhatsApp</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

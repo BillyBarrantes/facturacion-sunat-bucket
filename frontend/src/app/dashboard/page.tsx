@@ -1,27 +1,64 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Navbar from '@/components/navbar'
-import { TrendingUp, FileSpreadsheet, Sparkles, Receipt, DollarSign, Wallet, CreditCard, RefreshCw } from 'lucide-react'
+import { TrendingUp, FileSpreadsheet, Sparkles, RefreshCw } from 'lucide-react'
 
 export default function DashboardPage() {
   const [loadingAi, setLoadingAi] = useState(false)
+  const [loadingMetrics, setLoadingMetrics] = useState(true)
   const [aiSummary, setAiSummary] = useState('')
 
-  const metrics = {
-    totalVentas: 1333.40,
-    igvVentas: 203.40,
-    conteoComprobantes: 2,
-    totalCompras: 118.00,
-    igvCompras: 18.00,
-    igvEstimado: 185.40,
+  const [metrics, setMetrics] = useState({
+    totalVentas: 0,
+    igvVentas: 0,
+    conteoComprobantes: 0,
+    totalCompras: 0,
+    igvCompras: 0,
+    igvEstimado: 0,
     desglose: {
-      EFECTIVO: 153.40,
-      YAPE_PLIN: 0.00,
-      TRANSFERENCIA: 1180.00,
-      TARJETA: 0.00
+      EFECTIVO: 0,
+      YAPE_PLIN: 0,
+      TRANSFERENCIA: 0,
+      TARJETA: 0
+    }
+  })
+
+  const fetchMetrics = async () => {
+    setLoadingMetrics(true)
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://backend-fastapi-d2wt.onrender.com'
+      const token = localStorage.getItem('sunat_token') || 'test-token'
+      const res = await fetch(`${apiUrl}/api/v1/dashboard/metrics`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setMetrics({
+          totalVentas: data.total_ventas || 0,
+          igvVentas: data.igv_ventas || 0,
+          conteoComprobantes: data.conteo_comprobantes || 0,
+          totalCompras: data.total_compras || 0,
+          igvCompras: data.igv_compras || 0,
+          igvEstimado: data.igv_estimado_a_pagar || 0,
+          desglose: {
+            EFECTIVO: data.desglose_metodos_pago?.EFECTIVO || 0,
+            YAPE_PLIN: data.desglose_metodos_pago?.YAPE_PLIN || 0,
+            TRANSFERENCIA: data.desglose_metodos_pago?.TRANSFERENCIA || 0,
+            TARJETA: data.desglose_metodos_pago?.TARJETA || 0
+          }
+        })
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoadingMetrics(false)
     }
   }
+
+  useEffect(() => {
+    fetchMetrics()
+  }, [])
 
   const handleDownloadSire = () => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://backend-fastapi-d2wt.onrender.com'
@@ -32,14 +69,15 @@ export default function DashboardPage() {
     setLoadingAi(true)
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://backend-fastapi-d2wt.onrender.com'
+      const token = localStorage.getItem('sunat_token') || 'test-token'
       const res = await fetch(`${apiUrl}/api/v1/dashboard/ai-summary`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer test-token' }
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
       })
       const data = await res.json()
       setAiSummary(data.resumen_ejecutivo || 'Durante este mes tus ventas registran un incremento sostenido...')
     } catch {
-      setAiSummary('Durante este mes has registrado S/ 1,333.40 en ventas. Tus compras te permiten deducir S/ 18.00 de IGV, resultando en un impuesto estimado de S/ 185.40.')
+      setAiSummary(`Durante este mes has registrado S/ ${metrics.totalVentas.toFixed(2)} en ventas distribuidas en ${metrics.conteoComprobantes} comprobantes. Tu crédito fiscal suma S/ ${metrics.igvCompras.toFixed(2)}, estimando un IGV a pagar de S/ ${metrics.igvEstimado.toFixed(2)}.`)
     } finally {
       setLoadingAi(false)
     }
@@ -54,8 +92,18 @@ export default function DashboardPage() {
         {/* Encabezado */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">Dashboard & Analítica MYPE</h1>
-            <p className="text-slate-400 text-xs">Métricas en tiempo real, estimación de IGV y exportación SIRE.</p>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-white">Dashboard & Analítica MYPE</h1>
+              <button
+                onClick={fetchMetrics}
+                disabled={loadingMetrics}
+                className="text-slate-400 hover:text-white p-1 rounded-lg bg-slate-900 border border-slate-800 transition-colors"
+                title="Actualizar datos en tiempo real"
+              >
+                <RefreshCw className={`h-4 w-4 ${loadingMetrics ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+            <p className="text-slate-400 text-xs">Métricas en tiempo real desde Supabase DB, estimación de IGV y exportación SIRE.</p>
           </div>
 
           <div className="flex gap-3">
@@ -96,60 +144,70 @@ export default function DashboardPage() {
               <span>Ventas Totales</span>
               <TrendingUp className="h-4 w-4 text-emerald-400" />
             </div>
-            <div className="text-2xl font-bold text-white">S/ {metrics.totalVentas.toFixed(2)}</div>
-            <div className="text-[11px] text-emerald-400 font-medium">{metrics.conteoComprobantes} comprobantes emitidos</div>
+            <div className="text-2xl font-bold text-white">
+              {loadingMetrics ? '...' : `S/ ${metrics.totalVentas.toFixed(2)}`}
+            </div>
+            <div className="text-[11px] text-emerald-400 font-medium">
+              {metrics.conteoComprobantes} comprobantes emitidos
+            </div>
           </div>
 
           <div className="bg-slate-900/60 border border-slate-800 p-5 rounded-2xl space-y-2 backdrop-blur-xl">
             <div className="flex justify-between items-center text-slate-400 text-xs">
               <span>Compras & Gastos</span>
-              <Receipt className="h-4 w-4 text-blue-400" />
+              <span className="text-blue-400 font-bold text-xs">Crédito Fiscal</span>
             </div>
-            <div className="text-2xl font-bold text-white">S/ {metrics.totalCompras.toFixed(2)}</div>
-            <div className="text-[11px] text-blue-400 font-medium">Crédito fiscal IGV: S/ {metrics.igvCompras.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-white">
+              {loadingMetrics ? '...' : `S/ ${metrics.totalCompras.toFixed(2)}`}
+            </div>
+            <div className="text-[11px] text-slate-400 font-medium">
+              Crédito fiscal IGV: S/ {metrics.igvCompras.toFixed(2)}
+            </div>
           </div>
 
           <div className="bg-slate-900/60 border border-slate-800 p-5 rounded-2xl space-y-2 backdrop-blur-xl">
             <div className="flex justify-between items-center text-slate-400 text-xs">
               <span>IGV Estimado a Pagar</span>
-              <DollarSign className="h-4 w-4 text-amber-400" />
+              <span className="text-amber-400 font-bold text-xs">$</span>
             </div>
-            <div className="text-2xl font-bold text-amber-400">S/ {metrics.igvEstimado.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-amber-400">
+              {loadingMetrics ? '...' : `S/ ${metrics.igvEstimado.toFixed(2)}`}
+            </div>
             <div className="text-[11px] text-slate-500">IGV Ventas (- IGV Compras)</div>
           </div>
 
           <div className="bg-slate-900/60 border border-slate-800 p-5 rounded-2xl space-y-2 backdrop-blur-xl">
             <div className="flex justify-between items-center text-slate-400 text-xs">
               <span>Efectivo & Digital</span>
-              <Wallet className="h-4 w-4 text-purple-400" />
+              <span className="text-purple-400 font-bold text-xs">Cobros</span>
             </div>
-            <div className="text-2xl font-bold text-white">S/ {(metrics.desglose.EFECTIVO + metrics.desglose.YAPE_PLIN).toFixed(2)}</div>
-            <div className="text-[11px] text-purple-400 font-medium">Liquidación inmediata</div>
+            <div className="text-2xl font-bold text-white">
+              {loadingMetrics ? '...' : `S/ ${(metrics.desglose.EFECTIVO + metrics.desglose.YAPE_PLIN).toFixed(2)}`}
+            </div>
+            <div className="text-[11px] text-purple-400 font-medium">Liquidadas de inmediato</div>
           </div>
         </div>
 
         {/* Desglose por Método de Pago */}
-        <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl backdrop-blur-xl space-y-4">
-          <h3 className="font-bold text-white text-base">Desglose por Canal de Pago</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-              <div className="text-slate-400 text-xs font-semibold mb-1">Efectivo</div>
+        <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl space-y-4 backdrop-blur-xl">
+          <h2 className="text-sm font-bold text-white uppercase tracking-wider">Desglose por Canal de Pago</h2>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl">
+              <div className="text-xs text-slate-400 mb-1">Efectivo</div>
               <div className="text-lg font-bold text-white">S/ {metrics.desglose.EFECTIVO.toFixed(2)}</div>
             </div>
-
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-              <div className="text-slate-400 text-xs font-semibold mb-1">Yape / Plin</div>
-              <div className="text-lg font-bold text-white">S/ {metrics.desglose.YAPE_PLIN.toFixed(2)}</div>
+            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl">
+              <div className="text-xs text-slate-400 mb-1">Yape / Plin</div>
+              <div className="text-lg font-bold text-emerald-400">S/ {metrics.desglose.YAPE_PLIN.toFixed(2)}</div>
             </div>
-
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-              <div className="text-slate-400 text-xs font-semibold mb-1">Transferencia</div>
+            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl">
+              <div className="text-xs text-slate-400 mb-1">Transferencia</div>
               <div className="text-lg font-bold text-indigo-400">S/ {metrics.desglose.TRANSFERENCIA.toFixed(2)}</div>
             </div>
-
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-              <div className="text-slate-400 text-xs font-semibold mb-1">Tarjeta</div>
-              <div className="text-lg font-bold text-white">S/ {metrics.desglose.TARJETA.toFixed(2)}</div>
+            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl">
+              <div className="text-xs text-slate-400 mb-1">Tarjeta</div>
+              <div className="text-lg font-bold text-purple-400">S/ {metrics.desglose.TARJETA.toFixed(2)}</div>
             </div>
           </div>
         </div>
