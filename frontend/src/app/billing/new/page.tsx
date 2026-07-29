@@ -238,7 +238,7 @@ export default function NewInvoicePage() {
       }
 
       setComprobanteEmitido({
-        serieNumero: `${serie}-${String(numero).padStart(8, '0')}`,
+        serieNumero: data.comprobante || `${serie}-${String(numero).padStart(8, '0')}`,
         tipoComprobanteNombre: tipoComprobante === '01' ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA',
         fechaEmision: new Date().toLocaleDateString('es-PE'),
         emisorRazonSocial: emisorRazonSocial,
@@ -260,6 +260,7 @@ export default function NewInvoicePage() {
       setNumero(n => n + 1)
     } catch (err: any) {
       setErrorMsg(err.message || 'Ocurrió un error al procesar el comprobante.')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } finally {
       setIsSubmitting(false)
     }
