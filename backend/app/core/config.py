@@ -10,7 +10,10 @@ class Settings(BaseSettings):
     
     # Supabase
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "https://ezoklvuorziucevhvbde.supabase.co")
-    SUPABASE_SERVICE_ROLE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    SUPABASE_SERVICE_ROLE_KEY: str = os.getenv(
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6b2tsdnVvcnppdWNldmh2YmRlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NTI0NzQ5NCwiZXhwIjoyMTAwODIzNDk0fQ.IVKz2Ki36-0dqVmbyKBGzgPBI-r1DACqBx3TC_TMwuw"
+    )
     SUPABASE_DB_PASSWORD: str = os.getenv("SUPABASE_DB_PASSWORD", "Luilly13md$")
     
     # Google Gemini AI

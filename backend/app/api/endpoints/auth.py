@@ -35,10 +35,11 @@ def register_company(payload: RegisterCompanySchema):
             )
 
         # 2. Crear usuario en Supabase Auth via Admin API
-        auth_admin_url = f"{settings.SUPABASE_URL}/auth/v1/admin/users"
+        service_role_key = settings.SUPABASE_SERVICE_ROLE_KEY.strip()
+        auth_admin_url = f"{settings.SUPABASE_URL.strip()}/auth/v1/admin/users"
         headers = {
-            "apikey": settings.SUPABASE_SERVICE_ROLE_KEY,
-            "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}",
+            "apikey": service_role_key,
+            "Authorization": f"Bearer {service_role_key}",
             "Content-Type": "application/json"
         }
         user_body = {
@@ -100,9 +101,9 @@ def register_company(payload: RegisterCompanySchema):
         conn.commit()
 
         # 5. Generar token de sesión mediante inicio de sesión automático
-        login_url = f"{settings.SUPABASE_URL}/auth/v1/token?grant_type=password"
+        login_url = f"{settings.SUPABASE_URL.strip()}/auth/v1/token?grant_type=password"
         anon_headers = {
-            "apikey": settings.SUPABASE_SERVICE_ROLE_KEY,
+            "apikey": service_role_key,
             "Content-Type": "application/json"
         }
         with httpx.Client(timeout=15.0) as client:
@@ -137,9 +138,10 @@ def login_user(payload: LoginSchema):
     """
     Inicia sesión con email y password en Supabase Auth y retorna los datos de perfil de la empresa.
     """
-    login_url = f"{settings.SUPABASE_URL}/auth/v1/token?grant_type=password"
+    service_role_key = settings.SUPABASE_SERVICE_ROLE_KEY.strip()
+    login_url = f"{settings.SUPABASE_URL.strip()}/auth/v1/token?grant_type=password"
     headers = {
-        "apikey": settings.SUPABASE_SERVICE_ROLE_KEY,
+        "apikey": service_role_key,
         "Content-Type": "application/json"
     }
     
