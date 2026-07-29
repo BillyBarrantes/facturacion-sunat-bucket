@@ -233,7 +233,9 @@ export default function NewInvoicePage() {
         cantidad: cant,
         valor_unitario: valU,
         precio_unitario: precU,
-        unidad_medida: 'NIU'
+        unidad_medida: 'NIU',
+        monto_ingresado: monto,
+        modo_ingreso: modoIgv
       }
     ])
     setNewDesc('')
@@ -249,9 +251,16 @@ export default function NewInvoicePage() {
   const handleEditItem = (index: number) => {
     const item = items[index]
     setNewDesc(item.descripcion)
-    setNewPrecio(item.precio_unitario.toFixed(2))
+    
+    if (item.monto_ingresado !== undefined) {
+      setNewPrecio(item.monto_ingresado.toString())
+      setModoIgv(item.modo_ingreso || 'INC')
+    } else {
+      setNewPrecio(item.precio_unitario.toFixed(2))
+      setModoIgv('INC')
+    }
+    
     setNewCantidad(item.cantidad.toString())
-    setModoIgv('INC')
     setItems(items.filter((_, i) => i !== index))
   }
 
