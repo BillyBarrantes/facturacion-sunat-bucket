@@ -1,9 +1,9 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Navbar from '@/components/navbar'
 import TicketModal from '@/components/ticket_modal'
-import { UserCheck, ShoppingBag, Send, Plus, Trash2, ShieldAlert, Sparkles } from 'lucide-react'
+import { UserCheck, ShoppingBag, Send, Plus, Trash2, ShieldAlert, Sparkles, Search, CheckCircle2, Loader2 } from 'lucide-react'
 
 export default function NewInvoicePage() {
   const [tipoComprobante, setTipoComprobante] = useState('01') // 01: Factura, 03: Boleta
@@ -14,6 +14,10 @@ export default function NewInvoicePage() {
   const [clienteTipoDoc, setClienteTipoDoc] = useState('6') // 6: RUC, 1: DNI
   const [clienteNumDoc, setClienteNumDoc] = useState('20600000001')
   const [clienteRazonSocial, setClienteRazonSocial] = useState('CLIENTE DE PRUEBA S.A.C.')
+  
+  // Consulta de RUC/DNI en vivo
+  const [isSearchingDoc, setIsSearchingDoc] = useState(false)
+  const [docBadge, setDocBadge] = useState<string | null>(null)
 
   // Paso 2: Ítems
   const [items, setItems] = useState([
@@ -38,6 +42,51 @@ export default function NewInvoicePage() {
       setClienteTipoDoc('1')
     }
   }
+
+  // Función de Búsqueda Automática de RUC/DNI
+  const handleConsultarDoc = async (numDoc: string) => {
+    const docClean = numDoc.trim()
+    if (docClean.length !== 8 && docClean.length !== 11) return
+
+    setIsSearchingDoc(true)
+    setDocBadge(null)
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://backend-fastapi-d2wt.onrender.com'
+      const token = localStorage.getItem('sunat_token') || 'test-token'
+
+      const response = await fetch(`${apiUrl}/api/v1/comprobantes/consultar-doc/${docClean}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.found && data.razon_social) {
+          setClienteRazonSocial(data.razon_social)
+          const srcText = data.source === 'DATABASE' ? '✓ Base de Datos' : (data.tipo_doc === '6' ? '✓ SUNAT Oficial' : '✓ RENIEC Oficial')
+          setDocBadge(srcText)
+        } else {
+          setDocBadge('No encontrado en padrón')
+        }
+      }
+    } catch (err) {
+      console.error('Error consultando RUC/DNI:', err)
+    } finally {
+      setIsSearchingDoc(false)
+    }
+  }
+
+  // Auto-consulta al completar 8 u 11 dígitos
+  useEffect(() => {
+    if (clienteNumDoc.length === 8 || clienteNumDoc.length === 11) {
+      const timer = setTimeout(() => {
+        handleConsultarDoc(clienteNumDoc)
+      }, 400)
+      return () => clearTimeout(timer)
+    }
+  }, [clienteNumDoc])
 
   const handleAddItem = () => {
     if (!newDesc || !newPrecio) return
@@ -70,12 +119,13 @@ export default function NewInvoicePage() {
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://backend-fastapi-d2wt.onrender.com'
+      const token = localStorage.getItem('sunat_token') || 'test-token'
+
       const response = await fetch(`${apiUrl}/api/v1/comprobantes/emitir`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // Simulamos autorización bearer para la sesión
-          'Authorization': 'Bearer test-token'
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           tipo_comprobante: tipoComprobante,
@@ -98,197 +148,270 @@ export default function NewInvoicePage() {
 
       setComprobanteEmitido({
         serieNumero: `${serie}-${String(numero).padStart(8, '0')}`,
-        cliente: clienteRazonSocial,
-        documento: clienteNumDoc,
-        montoTotal: totalInclinclsive,
+        tipoComprobante: tipoComprobante === '01' ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA',
+        fechaEmision: new Date().toLocaleDateString('es-PE'),
+        emisorRazonSocial: 'EMPRESA MYPE DE PRUEBA S.A.C.',
+        emisorRuc: '20000000001',
+        emisorDireccion: 'AV. PRINCIPAL 123 - LIMA',
+        clienteRazonSocial: clienteRazonSocial,
+        clienteRuc: clienteNumDoc,
+        items: items,
+        opGravada: totalGravado,
         igv: totalIgv,
-        hashCpe: data.hash_cpe || 'HASH-BETA-SUNAT-12345678',
-        items: items.map(i => ({ descripcion: i.descripcion, cantidad: i.cantidad, total: i.precio_unitario * i.cantidad }))
+        total: totalInclinclsive,
+        hashCpe: data.hash_cpe || 'A1B2C3D4E5F67890=',
+        qrCodeBase64: data.qr_code_base64
       })
 
       setModalOpen(true)
-      setNumero(numero + 1) // Incrementar correlativo
+      setNumero(n => n + 1)
     } catch (err: any) {
-      setErrorMsg(err.message || 'Error de conexión con el API Backend')
+      setErrorMsg(err.message || 'Ocurrió un error al procesar el comprobante.')
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans pb-20 md:pb-0">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       <Navbar />
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6 space-y-6">
+      <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8 space-y-6">
         
-        {/* Banner de Estado SUNAT */}
-        <div className="bg-indigo-950/40 border border-indigo-500/20 p-4 rounded-2xl flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 bg-indigo-500/20 rounded-lg flex items-center justify-center text-indigo-400">
-              <Sparkles className="h-4 w-4" />
+        {/* Header de la Acción */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-6">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-extrabold text-white">Nueva Emisión Rápida</h1>
+              <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs px-2.5 py-0.5 rounded-full font-semibold flex items-center gap-1">
+                <Sparkles className="h-3 w-3" /> 3 Clics
+              </span>
             </div>
-            <div>
-              <h2 className="text-sm font-semibold text-white">Emisión Directa en 3 Clics</h2>
-              <p className="text-xs text-indigo-300">Conectado a SUNAT SEE (Ambiente BETA Activo)</p>
-            </div>
+            <p className="text-slate-400 text-sm mt-1">Generación de XML UBL 2.1, Firma Digital y Envío a SUNAT en tiempo real.</p>
           </div>
 
-          <div className="flex gap-2">
+          {/* Selección Tipo de Comprobante */}
+          <div className="flex bg-slate-900 border border-slate-800 p-1 rounded-xl">
             <button
               onClick={() => handleTipoChange('01')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                tipoComprobante === '01' ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-900 text-slate-400 border border-slate-800'
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+                tipoComprobante === '01' 
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' 
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
-              Factura (01)
+              FACTURA (F001)
             </button>
             <button
               onClick={() => handleTipoChange('03')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                tipoComprobante === '03' ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-900 text-slate-400 border border-slate-800'
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+                tipoComprobante === '03' 
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' 
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
-              Boleta (03)
+              BOLETA (B001)
             </button>
           </div>
         </div>
 
         {errorMsg && (
-          <div className="bg-rose-950/50 border border-rose-800 p-4 rounded-xl text-rose-300 text-xs flex items-center gap-2">
-            <ShieldAlert className="h-4 w-4 text-rose-400 shrink-0" />
+          <div className="bg-rose-950/60 border border-rose-800 text-rose-300 p-4 rounded-xl text-sm flex items-center gap-3">
+            <ShieldAlert className="h-5 w-5 text-rose-400 shrink-0" />
             <span>{errorMsg}</span>
           </div>
         )}
 
-        {/* PASO 1: DATOS DEL CLIENTE */}
-        <section className="bg-slate-900/60 border border-slate-800 backdrop-blur-xl p-5 rounded-2xl space-y-4">
-          <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-            <span className="h-6 w-6 rounded-full bg-indigo-500 text-white text-xs font-bold flex items-center justify-center">1</span>
-            <h3 className="font-semibold text-sm text-white">Datos del Cliente</h3>
+        {/* Clic 1: Datos del Cliente */}
+        <section className="bg-slate-900/60 border border-slate-800 backdrop-blur-md p-6 rounded-2xl space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+            <div className="flex items-center gap-2 text-indigo-400 font-semibold text-sm">
+              <UserCheck className="h-4 w-4" />
+              <span>Clic 1: Cliente & Documento (Autocompletado SUNAT / RENIEC)</span>
+            </div>
+
+            {docBadge && (
+              <span className="text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full flex items-center gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {docBadge}
+              </span>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Tipo Doc.</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Tipo de Documento</label>
               <select
                 value={clienteTipoDoc}
                 onChange={(e) => setClienteTipoDoc(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none"
               >
-                <option value="6">RUC (6)</option>
-                <option value="1">DNI (1)</option>
+                <option value="6">RUC (Empresa)</option>
+                <option value="1">DNI (Persona Natural)</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">N° Documento</label>
-              <input
-                type="text"
-                value={clienteNumDoc}
-                onChange={(e) => setClienteNumDoc(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none"
-              />
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Número de Doc (RUC/DNI)</label>
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  value={clienteNumDoc}
+                  onChange={(e) => setClienteNumDoc(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-3 pr-10 py-2 text-sm text-white focus:border-indigo-500 outline-none font-mono"
+                  placeholder="20601234567"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleConsultarDoc(clienteNumDoc)}
+                  disabled={isSearchingDoc}
+                  className="absolute right-2 text-slate-400 hover:text-indigo-400 p-1"
+                  title="Consultar en SUNAT/RENIEC"
+                >
+                  {isSearchingDoc ? <Loader2 className="h-4 w-4 animate-spin text-indigo-400" /> : <Search className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Razón Social / Nombre</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Razón Social / Nombre Completo</label>
               <input
                 type="text"
                 value={clienteRazonSocial}
                 onChange={(e) => setClienteRazonSocial(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none"
+                placeholder="Razón Social del Cliente"
               />
             </div>
           </div>
         </section>
 
-        {/* PASO 2: PRODUCTOS E ÍTEMS */}
-        <section className="bg-slate-900/60 border border-slate-800 backdrop-blur-xl p-5 rounded-2xl space-y-4">
-          <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-            <span className="h-6 w-6 rounded-full bg-indigo-500 text-white text-xs font-bold flex items-center justify-center">2</span>
-            <h3 className="font-semibold text-sm text-white">Detalle de Productos / Servicios</h3>
+        {/* Clic 2: Detalle de Productos / Servicios */}
+        <section className="bg-slate-900/60 border border-slate-800 backdrop-blur-md p-6 rounded-2xl space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+            <div className="flex items-center gap-2 text-indigo-400 font-semibold text-sm">
+              <ShoppingBag className="h-4 w-4" />
+              <span>Clic 2: Productos y Servicios a Cobrar</span>
+            </div>
           </div>
 
-          {/* Formulario rápido para agregar ítem */}
-          <div className="flex gap-2 items-center">
-            <input
-              type="text"
-              placeholder="Descripción del ítem o producto..."
-              value={newDesc}
-              onChange={(e) => setNewDesc(e.target.value)}
-              className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
-            />
-            <input
-              type="number"
-              placeholder="Precio (S/)"
-              value={newPrecio}
-              onChange={(e) => setNewPrecio(e.target.value)}
-              className="w-28 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
-            />
-            <button
-              onClick={handleAddItem}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-lg transition-all"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
+          {/* Formulario Agregar Item */}
+          <div className="grid sm:grid-cols-12 gap-3 bg-slate-950/50 p-3 rounded-xl border border-slate-800/50">
+            <div className="sm:col-span-7">
+              <input
+                type="text"
+                value={newDesc}
+                onChange={(e) => setNewDesc(e.target.value)}
+                placeholder="Descripción del Producto / Servicio"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none"
+              />
+            </div>
+            <div className="sm:col-span-3">
+              <input
+                type="number"
+                value={newPrecio}
+                onChange={(e) => setNewPrecio(e.target.value)}
+                placeholder="Precio Inc. IGV (S/)"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-indigo-500 outline-none"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <button
+                type="button"
+                onClick={handleAddItem}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg text-xs flex items-center justify-center gap-1 transition-all"
+              >
+                <Plus className="h-4 w-4" /> Agregar
+              </button>
+            </div>
           </div>
 
-          {/* Lista de Ítems */}
-          <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl overflow-hidden bg-slate-950/40">
-            {items.map((item, idx) => (
-              <div key={idx} className="p-3 flex items-center justify-between text-xs">
-                <div>
-                  <div className="font-semibold text-white">{item.descripcion}</div>
-                  <div className="text-slate-500 text-[10px]">Cant: {item.cantidad} NIU</div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="font-bold text-emerald-400">S/ {(item.precio_unitario * item.cantidad).toFixed(2)}</div>
-                  <button
-                    onClick={() => handleRemoveItem(idx)}
-                    className="text-slate-600 hover:text-rose-400 transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
+          {/* Tabla de Ítems */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-950 text-slate-400 uppercase tracking-wider">
+                <tr>
+                  <th className="py-2.5 px-3">Código</th>
+                  <th className="py-2.5 px-3">Descripción</th>
+                  <th className="py-2.5 px-3 text-right">Cant.</th>
+                  <th className="py-2.5 px-3 text-right">P. Unit</th>
+                  <th className="py-2.5 px-3 text-right">Total</th>
+                  <th className="py-2.5 px-3 text-center">Acción</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 text-slate-300">
+                {items.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-slate-800/30">
+                    <td className="py-2.5 px-3 font-mono text-slate-400">{item.codigo}</td>
+                    <td className="py-2.5 px-3 font-medium text-white">{item.descripcion}</td>
+                    <td className="py-2.5 px-3 text-right font-mono">{item.cantidad}</td>
+                    <td className="py-2.5 px-3 text-right font-mono">S/ {item.precio_unitario.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 text-right font-mono text-emerald-400 font-bold">
+                      S/ {(item.precio_unitario * item.cantidad).toFixed(2)}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <button
+                        onClick={() => handleRemoveItem(idx)}
+                        className="text-slate-500 hover:text-rose-400 p-1"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
-          {/* Desglose de Totales */}
-          <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-xs space-y-1">
-            <div className="flex justify-between text-slate-400">
+          {/* Resumen Totales */}
+          <div className="flex flex-col items-end pt-3 border-t border-slate-800/80 text-xs space-y-1">
+            <div className="flex justify-between w-48 text-slate-400">
               <span>Op. Gravada:</span>
-              <span>S/ {totalGravado.toFixed(2)}</span>
+              <span className="font-mono">S/ {totalGravado.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-slate-400">
+            <div className="flex justify-between w-48 text-slate-400">
               <span>IGV (18%):</span>
-              <span>S/ {totalIgv.toFixed(2)}</span>
+              <span className="font-mono">S/ {totalIgv.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between font-bold text-sm text-white border-t border-slate-800 pt-2">
-              <span>IMPORTE TOTAL:</span>
-              <span className="text-emerald-400">S/ {totalInclinclsive.toFixed(2)}</span>
+            <div className="flex justify-between w-48 text-sm font-bold text-white pt-1 border-t border-slate-800">
+              <span>Total Importe:</span>
+              <span className="font-mono text-emerald-400">S/ {totalInclinclsive.toFixed(2)}</span>
             </div>
           </div>
         </section>
 
-        {/* PASO 3: EMITIR A SUNAT */}
-        <button
-          onClick={handleEmitir}
-          disabled={isSubmitting || items.length === 0}
-          className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold py-4 rounded-2xl shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 text-base transition-all disabled:opacity-50"
-        >
-          <Send className="h-5 w-5" />
-          <span>{isSubmitting ? 'Firmando y Enviando a SUNAT...' : `Emitir ${tipoComprobante === '01' ? 'Factura' : 'Boleta'} ${serie}-${String(numero).padStart(8, '0')}`}</span>
-        </button>
+        {/* Clic 3: Botón de Emisión Final */}
+        <div className="pt-2">
+          <button
+            onClick={handleEmitir}
+            disabled={isSubmitting || items.length === 0}
+            className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold py-4 rounded-xl shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 text-base transition-all disabled:opacity-50"
+          >
+            <Send className="h-5 w-5" />
+            <span>{isSubmitting ? 'Firmando y enviando a SUNAT...' : 'Clic 3: EMITIR Y FIRMAR COMPROBANTE HASTA SUNAT'}</span>
+          </button>
+        </div>
 
       </main>
 
-      {/* Ticket Modal de Confirmación e Impresión */}
-      {comprobanteEmitido && (
+      {/* Ticketera / Impresión Modal */}
+      {modalOpen && comprobanteEmitido && (
         <TicketModal
           isOpen={modalOpen}
           onClose={() => setModalOpen(false)}
-          comprobante={comprobanteEmitido}
+          comprobante={{
+            serieNumero: comprobanteEmitido.serieNumero,
+            cliente: comprobanteEmitido.clienteRazonSocial,
+            documento: comprobanteEmitido.clienteRuc,
+            montoTotal: comprobanteEmitido.total,
+            igv: comprobanteEmitido.igv,
+            hashCpe: comprobanteEmitido.hashCpe,
+            items: comprobanteEmitido.items.map((i: any) => ({
+              descripcion: i.descripcion,
+              cantidad: i.cantidad,
+              total: i.precio_unitario * i.cantidad
+            }))
+          }}
         />
       )}
     </div>

@@ -8,8 +8,27 @@ from app.services.sunat_builder import SunatXMLBuilder
 from app.services.signer import XMLDigitalSigner
 from app.services.sunat_client import SunatSOAPClient
 from app.services.pdf_generator import PDFGenerator
+from app.services.doc_lookup import lookup_document
 
 router = APIRouter(prefix="/comprobantes", tags=["Comprobantes Electrónicos"])
+
+@router.get("/consultar-doc/{num_doc}")
+def consultar_documento(
+    num_doc: str,
+    current_user: Dict[str, Any] = Depends(require_tenant)
+):
+    """
+    Consulta automática de RUC (11 dígitos - SUNAT) o DNI (8 dígitos - RENIEC).
+    Revisa primero el historial de clientes de la empresa y luego fuentes oficiales.
+    """
+    company_id = current_user.get("company_id")
+    conn = get_db_connection()
+    try:
+        data = lookup_document(num_doc, company_id=company_id, conn=conn)
+        return data
+    finally:
+        conn.close()
+
 
 # Schemas de entrada
 class DetalleItemSchema(BaseModel):
