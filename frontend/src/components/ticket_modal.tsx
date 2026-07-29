@@ -117,28 +117,28 @@ export default function TicketModal({ isOpen, onClose, comprobante }: TicketModa
           {comprobante.opGravada !== undefined && (
             <div className="flex justify-between text-[11px]">
               <span>Op. Gravada:</span>
-              <span>S/ {comprobante.opGravada.toFixed(2)}</span>
+              <span>S/ {(comprobante.opGravada ?? 0).toFixed(2)}</span>
             </div>
           )}
           {comprobante.descuento ? (
             <div className="flex justify-between text-[11px]">
               <span>Descuento Aplicado:</span>
-              <span>- S/ {comprobante.descuento.toFixed(2)}</span>
+              <span>- S/ {(comprobante.descuento ?? 0).toFixed(2)}</span>
             </div>
           ) : null}
           <div className="flex justify-between text-[11px]">
             <span>IGV (18%):</span>
-            <span>S/ {comprobante.igv.toFixed(2)}</span>
+            <span>S/ {(comprobante.igv ?? 0).toFixed(2)}</span>
           </div>
           {comprobante.anticipo ? (
             <div className="flex justify-between text-[11px]">
               <span>Anticipo Aplicado:</span>
-              <span>- S/ {comprobante.anticipo.toFixed(2)}</span>
+              <span>- S/ {(comprobante.anticipo ?? 0).toFixed(2)}</span>
             </div>
           ) : null}
           <div className="flex justify-between font-bold text-sm mt-1">
             <span>IMPORTE TOTAL:</span>
-            <span>S/ {comprobante.montoTotal.toFixed(2)}</span>
+            <span>S/ {(comprobante.montoTotal ?? 0).toFixed(2)}</span>
           </div>
 
           <div className="text-center text-[9px] text-slate-500 mt-4 break-all">

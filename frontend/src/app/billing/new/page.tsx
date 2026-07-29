@@ -696,8 +696,8 @@ export default function NewInvoicePage() {
             opGravada: comprobanteEmitido.opGravada,
             descuento: comprobanteEmitido.descuento,
             anticipo: comprobanteEmitido.anticipo,
-            igv: comprobanteEmitido.igv,
-            montoTotal: comprobanteEmitido.total,
+            igv: comprobanteEmitido.igv ?? 0,
+            montoTotal: comprobanteEmitido.montoTotal ?? comprobanteEmitido.total ?? 0,
             hashCpe: comprobanteEmitido.hashCpe,
             items: comprobanteEmitido.items.map((i: any) => ({
               descripcion: i.descripcion,
