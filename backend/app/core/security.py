@@ -2,21 +2,21 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 import psycopg2
-from typing import Dict, Any
+from typing import Dict, Any, Generator
+from contextlib import contextmanager
 from app.core.config import settings
+from app.core.database import init_pool, get_db, close_pool
 
 security_scheme = HTTPBearer(auto_error=False)
 
 def get_db_connection():
-    """Conexión limpia a Supabase PostgreSQL."""
+    """Conexión directa a Supabase PostgreSQL (fallback sin pool)."""
     project_ref = settings.SUPABASE_URL.replace("https://", "").split(".")[0]
-    
     hosts = [
         ("aws-0-sa-east-1.pooler.supabase.com", 6543, f"postgres.{project_ref}"),
         (f"db.{project_ref}.supabase.co", 5432, "postgres"),
         (f"db.{project_ref}.supabase.co", 6543, f"postgres.{project_ref}")
     ]
-    
     last_err = None
     for host, port, user in hosts:
         try:
@@ -32,8 +32,7 @@ def get_db_connection():
         except Exception as e:
             last_err = e
             continue
-            
-    raise last_err
+    raise last_err if last_err else RuntimeError("No se pudo conectar a la BD")
 
 def get_fallback_company_id() -> str:
     """Obtiene un ID de empresa válido de la base de datos de Supabase."""

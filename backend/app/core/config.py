@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     # SUNAT Environment (BETA / PRODUCCION)
     SUNAT_ENV: str = os.getenv("SUNAT_ENV", "BETA")
     
+    # Rate Limiting
+    RATE_LIMIT_ENABLED: bool = os.getenv("RATE_LIMIT_ENABLED", "false").lower() == "true"
+    RATE_LIMIT_REQUESTS: int = int(os.getenv("RATE_LIMIT_REQUESTS", "100"))
+    RATE_LIMIT_WINDOW_SECONDS: int = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
+    RATE_LIMIT_BACKEND: str = os.getenv("RATE_LIMIT_BACKEND", "memory")
+    
     class Config:
         env_file = ".env"
         case_sensitive = True
