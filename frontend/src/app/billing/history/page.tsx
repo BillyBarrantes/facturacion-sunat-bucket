@@ -172,10 +172,10 @@ export default function HistoryPage() {
                       <td className="px-6 py-4 text-slate-400">{c.fecha_emision}</td>
                       <td className="px-6 py-4 font-bold text-white">S/ {c.importe_total.toFixed(2)}</td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold ${
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium ${
                           c.estado_sunat === 'ACEPTADO'
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                            : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200/60 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'
                         }`}>
                           {c.estado_sunat}
                         </span>
