@@ -36,6 +36,8 @@ export default function NewInvoicePage() {
     valor_unitario: number
     precio_unitario: number
     unidad_medida: string
+    monto_ingresado?: number
+    modo_ingreso?: 'INC' | 'SIN'
   }>>([])
   
   const [newCantidad, setNewCantidad] = useState('1')

@@ -25,7 +25,7 @@ interface TicketModalProps {
     igv: number
     montoTotal: number
     hashCpe: string
-    items: Array<{ descripcion: string; cantidad: number; total: number }>
+    items: Array<{ descripcion: string; cantidad: number; total: number; precio_unitario?: number }>
   }
 }
 
