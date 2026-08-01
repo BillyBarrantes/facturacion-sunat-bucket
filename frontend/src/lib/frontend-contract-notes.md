@@ -23,6 +23,15 @@
 - ❌ Filtros por query params en `GET /comprobantes` (no acepta `?tipo=` ni `?search=`)
 - ❌ Endpoint público de consulta de RUC/DNI (no existe; el lookup va por el backend con auth)
 
+## URL Base del API
+
+- El cliente `api-client.ts` usa `process.env.NEXT_PUBLIC_API_URL || ''`.
+- **Desarrollo local**: `.env.local` define `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000` (el backend corre en tu máquina).
+- **Producción (Vercel)**: NO configurar `NEXT_PUBLIC_API_URL`. El fallback es `''`, lo que produce rutas relativas (`/api/v1/...`). Vercel hace proxy al backend público vía `rewrites()` en `next.config.ts`.
+- Variable de entorno para el backend público (server-side, NO `NEXT_PUBLIC_`): `BACKEND_PUBLIC_URL`. Configurarla en **Vercel Project Settings → Environment Variables** con la URL pública del backend (ej: `https://facturasunat-backend.onrender.com`). Esta variable no se expone al navegador.
+- **No configurar `NEXT_PUBLIC_API_URL` en Vercel**: rompería el proxy rewrite y expondría la URL directa del backend en el bundle del navegador.
+- Si `BACKEND_PUBLIC_URL` no está definida en Vercel, `rewrites()` no se aplica y el frontend intenta rutas relativas al mismo dominio (que llegarán al propio Next.js sin proxy).
+
 ## Auth
 
 - Flujo: `POST /auth/login` o `POST /auth/register-company` → devuelve `access_token`

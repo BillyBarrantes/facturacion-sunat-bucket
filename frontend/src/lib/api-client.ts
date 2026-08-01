@@ -10,7 +10,7 @@ import type {
 } from './api-types'
 
 const BASE_URL: string =
-  process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+  process.env.NEXT_PUBLIC_API_URL || ''
 
 function getToken(): string {
   if (typeof window === 'undefined') return ''
