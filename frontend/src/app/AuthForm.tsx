@@ -13,6 +13,7 @@ interface AuthContextValue {
   setErrorMsg: (m: string) => void
   setSuccessMsg: (m: string) => void
   setIsLoading: (v: boolean) => void
+  setIsRegister: (v: boolean) => void
   toggle: () => void
 }
 
@@ -31,7 +32,7 @@ function Toggle() {
 }
 
 function AuthCard() {
-  const { isRegister, errorMsg, successMsg, isLoading, setErrorMsg, setSuccessMsg, setIsLoading } = useContext(AuthCtx)
+  const { isRegister, errorMsg, successMsg, isLoading, setErrorMsg, setSuccessMsg, setIsLoading, setIsRegister } = useContext(AuthCtx)
   const router = useRouter()
 
   const [email, setEmail] = useState('')
@@ -98,7 +99,7 @@ function AuthCard() {
           id="tab-register"
           aria-selected={isRegister}
           aria-controls="panel-auth"
-          onClick={() => { setErrorMsg(''); setSuccessMsg('') }}
+          onClick={() => { setIsRegister(true); setErrorMsg(''); setSuccessMsg('') }}
           className={`flex-1 py-2 text-[13px] font-medium rounded-[6px] transition-colors ${
             isRegister ? 'bg-[var(--bg)] text-[var(--fg)] shadow-[var(--shadow-card)]' : 'text-[var(--muted)] hover:text-[var(--fg-2)]'
           }`}
@@ -111,7 +112,7 @@ function AuthCard() {
           id="tab-login"
           aria-selected={!isRegister}
           aria-controls="panel-auth"
-          onClick={() => { setErrorMsg(''); setSuccessMsg('') }}
+          onClick={() => { setIsRegister(false); setErrorMsg(''); setSuccessMsg('') }}
           className={`flex-1 py-2 text-[13px] font-medium rounded-[6px] transition-colors ${
             !isRegister ? 'bg-[var(--bg)] text-[var(--fg)] shadow-[var(--shadow-card)]' : 'text-[var(--muted)] hover:text-[var(--fg-2)]'
           }`}
@@ -235,7 +236,7 @@ export default function AuthForm({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthCtx.Provider value={{ isRegister, errorMsg, successMsg, isLoading, setErrorMsg, setSuccessMsg, setIsLoading, toggle }}>
+    <AuthCtx.Provider value={{ isRegister, errorMsg, successMsg, isLoading, setErrorMsg, setSuccessMsg, setIsLoading, setIsRegister, toggle }}>
       {children}
     </AuthCtx.Provider>
   )
