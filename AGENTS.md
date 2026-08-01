@@ -165,3 +165,44 @@ Cuando analices una consulta de negocio, responde con esta estructura:
 - Si la solución involucra datos, respeta el **criterio de analítica** (selección inteligente de gráficos, anti-alucinación)
 - No contradice ninguna regla previa: las complementa como intérprete semántico inicial
 <!-- END:semantic-advisor -->
+
+<!-- BEGIN:frontend-ux-only -->
+# SKILL DE ALCANCE — Sesiones Open Design centradas en Frontend Visual
+
+El skill `frontend-ux-only` (`.agents/skills/frontend-ux-only/`) debe activarse al inicio de cualquier sesión Open Design cuyo propósito sea trabajar exclusivamente el lado visual/UX del frontend, sin tocar backend, auth, contratos API, lógica de negocio ni arquitectura.
+
+## Cuándo activarlo
+
+- Sesiones etiquetadas como "Open Design — solo frontend visual"
+- Cuando el usuario dice "solo diseño", "solo UI", "solo UX" o indica que no quiere modificar backend
+- Cuando el alcance se limita a: layout, spacing, tipografía, colores, componentes visuales, navegación, responsive/mobile, formularios, tablas, dashboards o consistencia visual
+
+## Prohibiciones nucleares
+
+El agente **no puede**:
+
+| No permitido | Ejemplo concreto |
+|---|---|
+| Backend | `backend/`, `api/**/*`, modificar endpoints |
+| Auth | login, registro, tokens, localStorage, headers `Authorization` |
+| Contratos API | `api-types.ts`, `api-client.ts`, `api-endpoints.ts`, `frontend-contract-notes.md` |
+| Lógica de negocio | Cálculo de IGV, flujos transaccionales, validación de negocio |
+| Security | CSP, middleware, sanitización, sesión, headers de seguridad |
+| Tests | Archivos `*.test.*`, `__test__/` |
+| Refactors técnicos | Renombrar variables, reestructurar componentes no visuales, reorganizar carpetas |
+
+## Reporte obligatorio al cierre
+
+Toda sesión con `frontend-ux-only` debe terminar con un reporte de 3 secciones:
+
+1. **Cambios visuales realizados** — archivo + qué cambió + por qué
+2. **Validación mobile** — confirmación de comportamiento en viewport 375px
+3. **Hallazgos técnicos detectados (no ejecutados)** — lista puntual de problemas encontrados que NO se tocaron, con formato `[archivo:línea] — [tipo] — [skill sugerido]`
+
+## Coexistencia con rules existentes
+
+- **`visual-direction`** — define criterio visual (paleta, tipografía, layout); `frontend-ux-only` define límite de alcance. Se complementan, sin reemplazar.
+- **`sunat-ui-design`** — guía de estilo para colores, badges, tablas. Todo cambio visual se le hace siguiendo esta guía. No se inventan paletas nuevas.
+- **`orchestrator-rules`** — la auditoría visual + CRO es obligatoria. Las soluciones resultantes se acotan a lo visual/UX. Si el veredicto CRO sugiere cambios de backend/contrato/auth → se reportan como hallazgos técnicos, no se implementan.
+- **`quality-shield`** — `npm run lint` + `npm run build` siguen siendo obligatorios tras todo cambio visual.
+<!-- END:frontend-ux-only -->

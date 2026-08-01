@@ -2,15 +2,16 @@
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Building2, Receipt, Sparkles, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Building2, ArrowRight, CheckCircle2, AlertCircle, FileText } from 'lucide-react'
+import { api, ApiClientError } from '@/lib/api-client'
 
 export default function Home() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isRegister, setIsRegister] = useState(true)
-  const [ruc, setRuc] = useState('20601234567')
-  const [razonSocial, setRazonSocial] = useState('MI EMPRESA DE PRUEBA S.A.C.')
+  const [ruc, setRuc] = useState('')
+  const [razonSocial, setRazonSocial] = useState('')
 
   const [isLoading, setIsLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -22,29 +23,16 @@ export default function Home() {
     setErrorMsg('')
     setSuccessMsg('')
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://backend-fastapi-d2wt.onrender.com'
-
     try {
       if (isRegister) {
-        // Flujo de Registro de Empresa
-        const res = await fetch(`${apiUrl}/api/v1/auth/register-company`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ruc: ruc,
-            razon_social: razonSocial,
-            email: email,
-            password: password
-          })
+        const data = await api.register({
+          ruc,
+          razon_social: razonSocial,
+          email,
+          password,
         })
 
-        const data = await res.json()
-
-        if (!res.ok) {
-          throw new Error(data.detail || 'Error al registrar la empresa')
-        }
-
-        setSuccessMsg('¡Empresa y usuario creados con éxito! Redirigiendo...')
+        setSuccessMsg('Empresa y usuario creados. Redirigiendo...')
         if (data.access_token) {
           localStorage.setItem('sunat_token', data.access_token)
           localStorage.setItem('sunat_company_id', data.company_id)
@@ -55,23 +43,9 @@ export default function Home() {
         }, 1200)
 
       } else {
-        // Flujo de Inicio de Sesión
-        const res = await fetch(`${apiUrl}/api/v1/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: email,
-            password: password
-          })
-        })
+        const data = await api.login({ email, password })
 
-        const data = await res.json()
-
-        if (!res.ok) {
-          throw new Error(data.detail || 'Credenciales incorrectas')
-        }
-
-        setSuccessMsg('¡Sesión iniciada con éxito! Redirigiendo...')
+        setSuccessMsg('Sesión iniciada. Redirigiendo...')
         localStorage.setItem('sunat_token', data.access_token)
         localStorage.setItem('sunat_company_id', data.company_id)
 
@@ -79,180 +53,207 @@ export default function Home() {
           router.push('/billing/new')
         }, 1000)
       }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Error de conexión con el backend API')
+    } catch (err: unknown) {
+      if (err instanceof ApiClientError) {
+        setErrorMsg(err.detail)
+      } else if (err instanceof Error) {
+        setErrorMsg(err.message || 'Error de conexión con el backend API')
+      } else {
+        setErrorMsg('Error de conexión con el backend API')
+      }
     } finally {
       setIsLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-indigo-500 selection:text-white font-sans">
-      {/* Dynamic Background Mesh */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div className="absolute -top-40 -left-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 -right-40 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl" />
-      </div>
-
-      {/* Header Navigation */}
-      <header className="relative z-10 border-b border-slate-800/80 backdrop-blur-md px-6 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--fg)] flex flex-col">
+      {/* Header */}
+      <header className="border-b border-[var(--border)] px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 bg-gradient-to-tr from-indigo-500 to-blue-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
-            <Receipt className="h-6 w-6 text-white" />
+          <div className="h-8 w-8 rounded-[var(--r-sm)] bg-[var(--fg)] flex items-center justify-center">
+            <FileText className="h-4 w-4 text-white" strokeWidth={1.5} />
           </div>
-          <div>
-            <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-              FacturaSUNAT AI
-            </span>
-            <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              Multi-Tenant
-            </span>
-          </div>
+          <span className="font-semibold text-[15px] tracking-tight text-[var(--fg)]">FacturaSUNAT AI</span>
         </div>
 
-        <button 
-          onClick={() => { setIsRegister(!isRegister); setErrorMsg(''); setSuccessMsg(''); }}
-          className="text-sm font-medium text-slate-300 hover:text-white transition-colors"
+        <button
+          onClick={() => { setIsRegister(!isRegister); setErrorMsg(''); setSuccessMsg('') }}
+          className="text-[13px] font-medium text-[var(--muted)] hover:text-[var(--fg)] transition-colors"
         >
           {isRegister ? '¿Ya tienes cuenta? Inicia sesión' : 'Registrar mi MYPE'}
         </button>
       </header>
 
-      {/* Main Content Hero */}
-      <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto px-6 py-12 grid md:grid-cols-2 gap-12 items-center">
-        
-        {/* Left Column: Value Prop */}
+      {/* Main */}
+      <main className="flex-1 max-w-[1100px] w-full mx-auto px-6 py-16 md:py-24 grid md:grid-cols-2 gap-16 items-center">
+
+        {/* Left — Value prop editorial */}
         <div className="space-y-6">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-xs text-indigo-400 font-medium">
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>Facturación Electrónica UBL 2.1 + IA Gemini</span>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-[var(--r-pill)] bg-[var(--accent-soft)] text-[var(--accent)] text-[11px] font-medium tracking-[var(--tracking-caps)] uppercase">
+            UBL 2.1 · SUNAT SEE
           </div>
 
-          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight">
-            Emisión de Facturas y Boletas en <span className="bg-gradient-to-r from-indigo-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent">3 Clics</span> para MYPES
+          <h1 className="font-[family-name:var(--font-source-serif-4)] text-[44px] md:text-[52px] font-medium leading-[1.1] tracking-[var(--tracking-display)] text-[var(--fg)]">
+            Facturación electrónica para MYPES peruanas.
           </h1>
 
-          <p className="text-slate-400 text-lg leading-relaxed">
-            Plataforma Multi-Empresa ultra-rápida. Envío directo a SUNAT (SEE Emisor), firma digital automática, lectura OCR de gastos con IA y reportes para SIRE.
+          <p className="text-[18px] leading-[var(--leading-body)] text-[var(--muted)] max-w-[52ch]">
+            Emite facturas y boletas directamente a SUNAT, con firma digital automática, lectura OCR
+            de gastos y reportes para SIRE — en una sola herramienta sobria y confiable.
           </p>
 
-          <div className="grid grid-cols-2 gap-4 pt-2">
-            <div className="flex items-center gap-2 text-sm text-slate-300">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-              <span>Aislamiento RLS Multi-Tenant</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-slate-300">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-              <span>Certificado CDT encriptado</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-slate-300">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-              <span>WhatsApp & Ticketera BT</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-slate-300">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-              <span>OCR Compras con Gemini</span>
-            </div>
-          </div>
+          <ul className="space-y-2.5 pt-2">
+            {[
+              'Envío directo a SUNAT con firma digital',
+              'Búsqueda automática de RUC y DNI',
+              'OCR de comprobantes de compra con IA',
+              'Estimación de IGV y exportación SIRE',
+            ].map((item) => (
+              <li key={item} className="flex items-center gap-2.5 text-[14px] text-[var(--fg-2)]">
+                <CheckCircle2 className="h-4 w-4 text-[var(--accent)] shrink-0" strokeWidth={1.5} />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
         </div>
 
-        {/* Right Column: Auth Box */}
-        <div className="bg-slate-900/60 border border-slate-800 backdrop-blur-xl p-8 rounded-2xl shadow-2xl shadow-indigo-950/50">
+        {/* Right — Auth card */}
+        <div className="bg-[var(--bg)] border border-[var(--border-soft)] rounded-[var(--r-lg)] p-8 shadow-[var(--shadow-card)]">
+          {/* Tabs registro / login */}
+          <div className="flex gap-1 p-1 mb-6 bg-[var(--surface)] rounded-[var(--r-sm)] border border-[var(--border-soft)]" role="tablist" aria-label="Tipo de acceso">
+            <button
+              type="button"
+              role="tab"
+              id="tab-register"
+              aria-selected={isRegister}
+              aria-controls="panel-auth"
+              onClick={() => { setIsRegister(true); setErrorMsg(''); setSuccessMsg('') }}
+              className={`flex-1 py-2 text-[13px] font-medium rounded-[6px] transition-colors ${
+                isRegister ? 'bg-[var(--bg)] text-[var(--fg)] shadow-[var(--shadow-card)]' : 'text-[var(--muted)] hover:text-[var(--fg-2)]'
+              }`}
+            >
+              Registrar empresa
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="tab-login"
+              aria-selected={!isRegister}
+              aria-controls="panel-auth"
+              onClick={() => { setIsRegister(false); setErrorMsg(''); setSuccessMsg('') }}
+              className={`flex-1 py-2 text-[13px] font-medium rounded-[6px] transition-colors ${
+                !isRegister ? 'bg-[var(--bg)] text-[var(--fg)] shadow-[var(--shadow-card)]' : 'text-[var(--muted)] hover:text-[var(--fg-2)]'
+              }`}
+            >
+              Iniciar sesión
+            </button>
+          </div>
+
           <div className="mb-6">
-            <h2 className="text-2xl font-bold text-white">
-              {isRegister ? 'Registrar Empresa (Tenant)' : 'Iniciar Sesión'}
+            <h2 className="text-[22px] font-semibold text-[var(--fg)] tracking-tight">
+              {isRegister ? 'Crea tu espacio MYPE' : 'Accede a tu panel'}
             </h2>
-            <p className="text-slate-400 text-sm mt-1">
-              {isRegister ? 'Ingresa los datos de tu MYPE para activar tu espacio aislado.' : 'Ingresa tus credenciales para acceder a tu panel de facturación.'}
+            <p className="text-[var(--muted)] text-[13px] mt-1">
+              {isRegister ? 'Datos de tu empresa para activar facturación.' : 'Ingresa tus credenciales.'}
             </p>
           </div>
 
           {errorMsg && (
-            <div className="mb-4 bg-rose-950/60 border border-rose-800 text-rose-300 p-3 rounded-xl text-xs flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+            <div className="mb-4 bg-[var(--danger-soft)] border border-[var(--danger)]/20 text-[var(--danger)] p-3 rounded-[var(--r-sm)] text-[13px] flex items-center gap-2" role="alert" aria-live="assertive">
+              <AlertCircle className="h-4 w-4 shrink-0" strokeWidth={1.5} />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="mb-4 bg-emerald-950/60 border border-emerald-800 text-emerald-300 p-3 rounded-xl text-xs flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+            <div className="mb-4 bg-[var(--accent-soft)] border border-[var(--accent)]/20 text-[var(--accent)] p-3 rounded-[var(--r-sm)] text-[13px] flex items-center gap-2" aria-live="polite">
+              <CheckCircle2 className="h-4 w-4 shrink-0" strokeWidth={1.5} />
               <span>{successMsg}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" id="panel-auth" role="tabpanel" aria-labelledby={isRegister ? 'tab-register' : 'tab-login'}>
             {isRegister && (
               <>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">RUC de la empresa (11 dígitos)</label>
+                  <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">
+                    RUC de la empresa <span className="text-[var(--danger)]">*</span>
+                    <span className="ml-1.5 text-[var(--muted-2)] font-normal">11 dígitos</span>
+                  </label>
                   <div className="relative">
-                    <input 
+                    <input
                       type="text"
                       maxLength={11}
                       required
                       placeholder="20601234567"
                       value={ruc}
                       onChange={(e) => setRuc(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                      className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3.5 py-2.5 text-[14px] text-[var(--fg)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors"
                     />
-                    <Building2 className="absolute right-3 top-2.5 h-5 w-5 text-slate-600" />
+                    <Building2 className="absolute right-3 top-2.5 h-[18px] w-[18px] text-[var(--muted-2)]" strokeWidth={1.5} />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Razón Social</label>
-                  <input 
+                  <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">
+                    Razón Social <span className="text-[var(--danger)]">*</span>
+                  </label>
+                  <input
                     type="text"
                     required
-                    placeholder="MI EMPRESA DE PRUEBA S.A.C."
+                    placeholder="Mi Empresa S.A.C."
                     value={razonSocial}
                     onChange={(e) => setRazonSocial(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                    className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3.5 py-2.5 text-[14px] text-[var(--fg)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors"
                   />
                 </div>
               </>
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Correo Electrónico</label>
-              <input 
+              <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">
+                Correo electrónico <span className="text-[var(--danger)]">*</span>
+              </label>
+              <input
                 type="email"
                 required
                 placeholder="admin@empresa.pe"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3.5 py-2.5 text-[14px] text-[var(--fg)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Contraseña</label>
-              <input 
+              <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">
+                Contraseña <span className="text-[var(--danger)]">*</span>
+              </label>
+              <input
                 type="password"
                 required
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3.5 py-2.5 text-[14px] text-[var(--fg)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors"
               />
             </div>
 
-            <button 
+            <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white font-semibold py-3 rounded-lg shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 transition-all group disabled:opacity-50"
+              className="w-full bg-[var(--fg)] hover:bg-[var(--fg-hover)] text-white text-[14px] font-medium py-3 rounded-[var(--r-sm)] flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <span>{isLoading ? 'Procesando...' : (isRegister ? 'Crear Empresa y Cuenta' : 'Ingresar al Sistema')}</span>
-              <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
+              <span>{isLoading ? 'Procesando...' : (isRegister ? 'Crear empresa y cuenta' : 'Ingresar al sistema')}</span>
+              {!isLoading && <ArrowRight className="h-4 w-4" strokeWidth={1.75} />}
             </button>
           </form>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 border-t border-slate-800/80 py-6 text-center text-xs text-slate-500">
-        <p>FacturaSUNAT AI &copy; 2026 — Sistema SaaS Multi-Tenant Peruano. Conectado a SUNAT SEE (BETA / PROD).</p>
+      <footer className="border-t border-[var(--border)] py-6 text-center text-[12px] text-[var(--muted-2)]">
+        <p>FacturaSUNAT AI © 2026 — Sistemas SaaS de facturación electrónica</p>
       </footer>
     </div>
   )

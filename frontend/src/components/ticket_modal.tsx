@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Printer, Share2, X, CheckCircle2, Eye, Send, Loader2 } from 'lucide-react'
+import { Printer, Share2, CheckCircle2, Eye, Send, Loader2, PencilLine, X } from 'lucide-react'
 
 interface TicketModalProps {
   isOpen: boolean
@@ -62,178 +62,179 @@ export default function TicketModal({
   const fecha = comprobante.fechaEmision || new Date().toLocaleDateString('es-PE')
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-        {!isPreview && (
-          <div className="absolute right-4 top-4">
+    <div
+      className="fixed inset-0 z-50 bg-[rgba(13,13,13,0.45)] backdrop-blur-sm flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ticket-modal-title"
+    >
+      <div className="bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-lg)] w-full max-w-md shadow-[var(--shadow-modal)] relative max-h-[90vh] overflow-y-auto">
+
+        {/* Header del modal */}
+        <div className="flex items-center justify-between p-5 border-b border-[var(--border-soft)]">
+          <div className="flex items-center gap-2.5">
+            <div className={`h-8 w-8 rounded-full grid place-items-center ${isPreview ? 'bg-[var(--warn-soft)] text-[var(--warn)]' : 'bg-[var(--accent-soft)] text-[var(--accent)]'}`}>
+              {isPreview
+                ? <Eye className="h-4 w-4" strokeWidth={1.75} />
+                : <CheckCircle2 className="h-4 w-4" strokeWidth={1.75} />}
+            </div>
+            <div>
+              <h3 id="ticket-modal-title" className="text-[15px] font-semibold text-[var(--fg)] tracking-tight">
+                {isPreview ? 'Vista previa' : 'Comprobante emitido'}
+              </h3>
+              <p className="text-[12px] text-[var(--muted)]">
+                {isPreview ? 'Revisa antes de firmar y enviar a SUNAT' : 'Firma digital y CDR aceptados'}
+              </p>
+            </div>
+          </div>
+
+          {!isPreview && (
             <button
               onClick={onClose}
               disabled={isEmitting}
-              className="text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded border border-slate-700 transition-colors"
+              className="h-7 w-7 grid place-items-center rounded-[var(--r-sm)] text-[var(--muted)] hover:text-[var(--fg)] hover:bg-[var(--surface)] transition-colors"
+              aria-label="Cerrar"
             >
-              Cerrar ventana
+              <X className="h-4 w-4" strokeWidth={1.75} />
             </button>
-          </div>
-        )}
-
-        {/* Modal Header */}
-        <div className="text-center mb-6">
-          {isPreview ? (
-            <>
-              <div className="h-12 w-12 bg-amber-500/10 text-amber-400 rounded-full flex items-center justify-center mx-auto mb-3 border border-amber-500/20">
-                <Eye className="h-6 w-6" />
-              </div>
-              <h3 className="text-xl font-bold text-amber-400">Vista Previa de Comprobante</h3>
-              <p className="text-slate-400 text-xs mt-1">Revisa los datos antes de firmar y emitir a SUNAT</p>
-            </>
-          ) : (
-            <>
-              <div className="h-12 w-12 bg-emerald-500/10 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-3 border border-emerald-500/20">
-                <CheckCircle2 className="h-6 w-6" />
-              </div>
-              <h3 className="text-xl font-bold text-white">Comprobante Registrado en SUNAT</h3>
-              <p className="text-slate-400 text-xs mt-1">Firma Digital & CDR Aceptado Oficialmente</p>
-            </>
           )}
         </div>
 
-        {/* Ticket Thermal View (Printable Section) */}
-        <div className="bg-white text-slate-900 p-5 rounded-xl text-xs font-mono mb-6 shadow-inner print:block relative" id="ticket-printable">
-          {isPreview && (
-            <div className="bg-amber-100 border border-amber-300 text-amber-900 text-[10px] font-bold uppercase tracking-wider text-center py-1 rounded mb-3">
-              ⚠️ VISTA PREVIA SIN EMITIR A SUNAT
-            </div>
-          )}
+        {/* Ticket térmico imprimible */}
+        <div className="p-5">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-sm)] p-5 font-[family-name:var(--font-geist-mono)] text-[12px] text-[var(--fg-2)]" id="ticket-printable">
+            {isPreview && (
+              <div className="bg-[var(--warn-soft)] border border-[var(--warn)]/20 text-[var(--warn)] text-[10px] font-semibold tracking-[var(--tracking-caps)] uppercase text-center py-1 rounded mb-3">
+                Vista previa — sin emitir a SUNAT
+              </div>
+            )}
 
-          {/* DATOS DEL EMISOR */}
-          <div className="text-center font-bold text-sm mb-1">{emisorNombre}</div>
-          <div className="text-center font-bold">RUC: {emisorRuc}</div>
-          <div className="text-center text-[10px] text-slate-600">{emisorDir}</div>
-          <div className="border-b border-dashed border-slate-300 my-2"></div>
-          
-          {/* IDENTIFICACIÓN DEL DOCUMENTO */}
-          <div className="text-center font-bold text-xs">{tipoTitulo}</div>
-          <div className="text-center font-bold text-sm">{comprobante.serieNumero}</div>
-          <div className="text-center text-[10px] text-slate-600">Fecha de Emisión: {fecha}</div>
-          <div className="border-b border-dashed border-slate-300 my-2"></div>
-          
-          {/* DATOS DEL CLIENTE / RECEPTOR */}
-          <div><b>Cliente / Receptor:</b> {comprobante.cliente}</div>
-          <div><b>Documento (RUC/DNI):</b> {comprobante.documento}</div>
-          {comprobante.clienteDireccion && (
-            <div><b>Dirección Fiscal:</b> {comprobante.clienteDireccion}</div>
-          )}
-          <div className="border-b border-dashed border-slate-300 my-2"></div>
+            <div className="text-center font-semibold text-[13px] mb-1">{emisorNombre}</div>
+            <div className="text-center font-semibold">RUC: {emisorRuc}</div>
+            <div className="text-center text-[10px] text-[var(--muted)]">{emisorDir}</div>
+            <div className="border-b border-dashed border-[var(--border)] my-2" />
 
-          {/* DETALLE DE LA OPERACIÓN */}
-          <table className="w-full text-left my-2">
-            <thead>
-              <tr className="border-b border-slate-200 text-[10px]">
-                <th className="py-1">Cant</th>
-                <th className="py-1">Descripción</th>
-                <th className="text-right py-1">P.Unit</th>
-                <th className="text-right py-1">Total</th>
-              </tr>
-            </thead>
-            <tbody className="text-[10px]">
-              {comprobante.items.map((item, idx) => (
-                <tr key={idx} className="border-b border-slate-100 border-dashed">
-                  <td className="py-1 align-top">{item.cantidad}</td>
-                  <td className="py-1 pr-1">{item.descripcion}</td>
-                  <td className="text-right py-1 align-top text-slate-600">{((item.precio_unitario ?? ((item.total ?? 0)/(item.cantidad || 1))) / 1.18).toFixed(2)}</td>
-                  <td className="text-right font-bold py-1 align-top">{((item.total ?? 0) / 1.18).toFixed(2)}</td>
+            <div className="text-center font-semibold text-[11px]">{tipoTitulo}</div>
+            <div className="text-center font-semibold text-[13px]">{comprobante.serieNumero}</div>
+            <div className="text-center text-[10px] text-[var(--muted)]">Fecha de emisión: {fecha}</div>
+            <div className="border-b border-dashed border-[var(--border)] my-2" />
+
+            <div><b>Cliente:</b> {comprobante.cliente}</div>
+            <div><b>Documento:</b> {comprobante.documento}</div>
+            {comprobante.clienteDireccion && (
+              <div><b>Dirección:</b> {comprobante.clienteDireccion}</div>
+            )}
+            <div className="border-b border-dashed border-[var(--border)] my-2" />
+
+            <table className="w-full text-left my-2">
+              <thead>
+                <tr className="border-b border-[var(--border-soft)] text-[10px]">
+                  <th scope="col" className="py-1">Cant</th>
+                  <th scope="col" className="py-1">Descripción</th>
+                  <th scope="col" className="text-right py-1">P.Unit</th>
+                  <th scope="col" className="text-right py-1">Total</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="text-[10px]">
+                {comprobante.items.map((item, idx) => (
+                  <tr key={idx} className="border-b border-dashed border-[var(--border-soft)]">
+                    <td className="py-1 align-top">{item.cantidad}</td>
+                    <td className="py-1 pr-1">{item.descripcion}</td>
+                    <td className="text-right py-1 align-top text-[var(--muted)]">{((item.precio_unitario ?? ((item.total ?? 0)/(item.cantidad || 1))) / 1.18).toFixed(2)}</td>
+                    <td className="text-right py-1 align-top font-medium">{((item.total ?? 0) / 1.18).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
 
-          {/* TOTALES Y MONTOS */}
-          <div className="border-b border-dashed border-slate-300 my-2"></div>
-          {comprobante.opGravada !== undefined && (
-            <div className="flex justify-between text-[11px]">
-              <span>Op. Gravada:</span>
-              <span>S/ {(comprobante.opGravada ?? 0).toFixed(2)}</span>
-            </div>
-          )}
-          {comprobante.descuento ? (
-            <div className="flex justify-between text-[11px]">
-              <span>Descuento Aplicado:</span>
-              <span>- S/ {(comprobante.descuento ?? 0).toFixed(2)}</span>
-            </div>
-          ) : null}
-          <div className="flex justify-between text-[11px]">
-            <span>IGV (18%):</span>
-            <span>S/ {(comprobante.igv ?? 0).toFixed(2)}</span>
-          </div>
-          {comprobante.anticipo ? (
-            <div className="flex justify-between text-[11px]">
-              <span>Anticipo Aplicado:</span>
-              <span>- S/ {(comprobante.anticipo ?? 0).toFixed(2)}</span>
-            </div>
-          ) : null}
-          <div className="flex justify-between font-bold text-sm mt-1">
-            <span>IMPORTE TOTAL:</span>
-            <span>S/ {(comprobante.montoTotal ?? 0).toFixed(2)}</span>
-          </div>
+            <div className="border-b border-dashed border-[var(--border)] my-2" />
 
-          {!isPreview && comprobante.hashCpe && (
-            <div className="text-center text-[9px] text-slate-500 mt-4 break-all">
-              Hash CPE: {comprobante.hashCpe}
+            {comprobante.opGravada !== undefined && (
+              <div className="flex justify-between text-[11px]">
+                <span>Op. gravada:</span>
+                <span>S/ {(comprobante.opGravada ?? 0).toFixed(2)}</span>
+              </div>
+            )}
+            {comprobante.descuento ? (
+              <div className="flex justify-between text-[11px]">
+                <span>Descuento:</span>
+                <span>- S/ {(comprobante.descuento ?? 0).toFixed(2)}</span>
+              </div>
+            ) : null}
+            <div className="flex justify-between text-[11px]">
+              <span>IGV (18%):</span>
+              <span>S/ {(comprobante.igv ?? 0).toFixed(2)}</span>
+            </div>
+            {comprobante.anticipo ? (
+              <div className="flex justify-between text-[11px]">
+                <span>Anticipo:</span>
+                <span>- S/ {(comprobante.anticipo ?? 0).toFixed(2)}</span>
+              </div>
+            ) : null}
+            <div className="flex justify-between font-semibold text-[13px] mt-1 pt-1 border-t border-[var(--border)]">
+              <span>IMPORTE TOTAL</span>
+              <span>S/ {(comprobante.montoTotal ?? 0).toFixed(2)}</span>
+            </div>
+
+            {!isPreview && comprobante.hashCpe && (
+              <div className="text-center text-[9px] text-[var(--muted-2)] mt-4 break-all">
+                Hash CPE: {comprobante.hashCpe}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Acciones */}
+        <div className="px-5 pb-5">
+          {isPreview ? (
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={onClose}
+                disabled={isEmitting}
+                className="w-full bg-[var(--bg)] border border-[var(--border)] hover:bg-[var(--surface)] text-[var(--fg-2)] text-[13px] font-medium py-2.5 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 transition-colors"
+              >
+                <PencilLine className="h-4 w-4" strokeWidth={1.5} />
+                <span>Modificar</span>
+              </button>
+
+              <button
+                onClick={onConfirmEmit}
+                disabled={isEmitting}
+                className="w-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium py-2.5 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              >
+                {isEmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.75} />
+                    <span>Emitiendo...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" strokeWidth={1.75} />
+                    <span>Emitir a SUNAT</span>
+                  </>
+                )}
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-3">
+              <button
+                onClick={handlePrint}
+                className="flex-1 bg-[var(--bg)] border border-[var(--border)] hover:bg-[var(--surface)] text-[var(--fg-2)] text-[13px] font-medium py-2.5 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 transition-colors"
+              >
+                <Printer className="h-4 w-4" strokeWidth={1.5} />
+                <span>Imprimir</span>
+              </button>
+
+              <button
+                onClick={handleWhatsApp}
+                className="flex-1 bg-[var(--accent-soft)] hover:bg-[var(--accent-soft)]/70 text-[var(--accent)] text-[13px] font-medium py-2.5 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 transition-colors border border-[var(--accent)]/15"
+              >
+                <Share2 className="h-4 w-4" strokeWidth={1.5} />
+                <span>WhatsApp</span>
+              </button>
             </div>
           )}
         </div>
-
-        {/* Actions Bar */}
-        {isPreview ? (
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={onClose}
-              disabled={isEmitting}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm transition-all"
-            >
-              <span>✏️ Modificar</span>
-            </button>
-
-            <button
-              onClick={onConfirmEmit}
-              disabled={isEmitting}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm transition-all shadow-lg shadow-emerald-600/30"
-            >
-              {isEmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Emitiendo...</span>
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  <span>Emitir a SUNAT</span>
-                </>
-              )}
-            </button>
-          </div>
-        ) : (
-          /* BOTONERA DE ACCIÓN Y CIERRE (SOLO EMITIDO) */
-          <div className="mt-6 space-y-3">
-            <div className="flex gap-4">
-              <button 
-                onClick={() => handlePrint()}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 border border-slate-700 transition-colors"
-              >
-                <Printer className="h-5 w-5" />
-                Imprimir Ticket
-              </button>
-              
-              <button 
-                onClick={handleWhatsApp}
-                className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
-              >
-                <Share2 className="h-5 w-5" />
-                WhatsApp
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

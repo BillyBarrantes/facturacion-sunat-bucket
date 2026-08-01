@@ -3,36 +3,30 @@
 import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { PlusCircle, History, LayoutDashboard, ShoppingBag, Receipt, Sparkles } from 'lucide-react'
+import { FilePlus2, ReceiptText, LayoutDashboard, ScanLine, FileText } from 'lucide-react'
 
 export default function Navbar() {
   const pathname = usePathname()
 
   const navItems = [
-    { label: 'Emitir', href: '/billing/new', icon: PlusCircle, highlight: true },
-    { label: 'Historial', href: '/billing/history', icon: History },
+    { label: 'Emitir', href: '/billing/new', icon: FilePlus2 },
+    { label: 'Historial', href: '/billing/history', icon: ReceiptText },
     { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { label: 'Compras OCR', href: '/expenses', icon: ShoppingBag },
+    { label: 'Compras OCR', href: '/expenses', icon: ScanLine },
   ]
 
   return (
     <>
-      {/* Top Header Navigation (Desktop / Laptop) */}
-      <header className="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-xl border-b border-slate-800 px-6 py-3.5 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="h-9 w-9 bg-gradient-to-tr from-indigo-500 to-blue-500 rounded-xl flex items-center justify-center shadow-md shadow-indigo-500/20">
-            <Receipt className="h-5 w-5 text-white" />
+      {/* Sidebar (Desktop ≥ 768px) */}
+      <aside className="hidden md:flex fixed inset-y-0 left-0 w-60 flex-col border-r border-[var(--border)] bg-[var(--surface)] z-40" role="navigation" aria-label="Menú principal">
+        <div className="flex items-center gap-3 px-6 h-16 border-b border-[var(--border)]">
+          <div className="h-7 w-7 rounded-[var(--r-sm)] bg-[var(--fg)] flex items-center justify-center">
+            <FileText className="h-4 w-4 text-white" strokeWidth={1.5} aria-hidden="true" />
           </div>
-          <div>
-            <span className="font-bold text-lg text-white tracking-tight">FacturaSUNAT</span>
-            <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              BETA SUNAT
-            </span>
-          </div>
-        </Link>
+          <span className="font-semibold text-[15px] text-[var(--fg)] tracking-tight">FacturaSUNAT</span>
+        </div>
 
-        {/* Desktop Links */}
-        <nav className="hidden md:flex items-center gap-1">
+        <nav className="flex-1 px-3 py-6 space-y-1" aria-label="Navegación de secciones">
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href
@@ -40,24 +34,27 @@ export default function Navbar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                  item.highlight
-                    ? 'bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-lg shadow-indigo-500/20 hover:from-indigo-600 hover:to-blue-700'
-                    : isActive
-                    ? 'bg-slate-800 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                aria-current={isActive ? 'page' : undefined}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-[var(--r-sm)] text-[14px] font-medium transition-colors ${
+                  isActive
+                    ? 'bg-[var(--bg)] text-[var(--fg)] shadow-[var(--shadow-card)]'
+                    : 'text-[var(--muted)] hover:text-[var(--fg-2)] hover:bg-[rgba(13,13,13,0.04)]'
                 }`}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-[18px] w-[18px]" strokeWidth={1.5} aria-hidden="true" />
                 <span>{item.label}</span>
               </Link>
             )
           })}
         </nav>
-      </header>
 
-      {/* Bottom Navigation Bar (Mobile / Touchscreen PWA) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-slate-900/90 backdrop-blur-2xl border-t border-slate-800 px-4 py-2 flex items-center justify-around">
+        <div className="px-6 py-4 border-t border-[var(--border)]">
+          <p className="text-[11px] text-[var(--muted-2)] tracking-[var(--tracking-small)]">UBL 2.1 · SUNAT SEE</p>
+        </div>
+      </aside>
+
+      {/* Bottom-bar (Mobile < 768px) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--bg)]/95 backdrop-blur-sm border-t border-[var(--border)] flex items-stretch justify-around px-1" role="navigation" aria-label="Navegación móvil" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {navItems.map((item) => {
           const Icon = item.icon
           const isActive = pathname === item.href
@@ -65,20 +62,20 @@ export default function Navbar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center gap-1 py-1 px-3 rounded-lg text-xs font-medium transition-all ${
-                item.highlight
-                  ? 'text-indigo-400 font-bold'
-                  : isActive
-                  ? 'text-white font-semibold'
-                  : 'text-slate-500 hover:text-slate-300'
+              aria-current={isActive ? 'page' : undefined}
+              className={`flex flex-col items-center justify-center gap-0.5 min-h-[52px] flex-1 px-2 py-2 rounded-[var(--r-sm)] text-[10px] font-medium transition-colors relative ${
+                isActive ? 'text-[var(--accent)]' : 'text-[var(--muted)]'
               }`}
             >
-              <Icon className={`h-5 w-5 ${item.highlight ? 'text-indigo-400 animate-pulse' : ''}`} />
-              <span>{item.label}</span>
+              <Icon className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
+              <span className="leading-tight">{item.label}</span>
+              {isActive && (
+                <span className="absolute top-1 left-1/2 -translate-x-1/2 h-[3px] w-5 rounded-full bg-[var(--accent)]" />
+              )}
             </Link>
           )
         })}
-      </div>
+      </nav>
     </>
   )
 }
