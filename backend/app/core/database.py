@@ -11,6 +11,48 @@ logger = logging.getLogger(__name__)
 _pool: Optional[psypool.ThreadedConnectionPool] = None
 
 
+class _PooledConn:
+    """Proxy que delega a la conn real pero close() devuelve al pool via putconn."""
+    def __init__(self, conn, pool):
+        self._c = conn
+        self._p = pool
+    def cursor(self, *a, **k):
+        return self._c.cursor(*a, **k)
+    def commit(self):
+        return self._c.commit()
+    def rollback(self):
+        return self._c.rollback()
+    def close(self):
+        try:
+            self._p.putconn(self._c)
+        except Exception:
+            pass
+    @property
+    def closed(self):
+        return self._c.closed
+    def __getattr__(self, name):
+        return getattr(self._c, name)
+
+
+def get_pool_connection():
+    """Obtiene una conexión del pool si existe; None si no hay pool.
+    Devuelve un proxy con close() que devuelve la conn al pool (no la cierra)."""
+    if _pool is None:
+        logger.info("[DB] get_db_connection → POOL ausente, usando fallback directo")
+        return None
+    logger.info("[DB] get_db_connection → POOL activo, reutilizando conexión")
+    conn = _pool.getconn()
+    try:
+        if not _connection_is_alive(conn):
+            logger.warning("[DB] Conexión muerta en pool, reemplazando...")
+            _pool.putconn(conn, close=True)
+            conn = _pool.getconn()
+        return _PooledConn(conn, _pool)
+    except Exception:
+        _pool.putconn(conn, close=True)
+        raise
+
+
 def _build_conn_params() -> dict:
     project_ref = settings.SUPABASE_URL.replace("https://", "").split(".")[0]
     hosts = [

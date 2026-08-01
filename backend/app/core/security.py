@@ -10,7 +10,18 @@ from app.core.database import init_pool, get_db, close_pool
 security_scheme = HTTPBearer(auto_error=False)
 
 def get_db_connection():
-    """Conexión directa a Supabase PostgreSQL (fallback sin pool)."""
+    """Obtiene conexión a Supabase PostgreSQL desde el pool (o fallback sin pool si está ausente)."""
+    from app.core.database import get_pool_connection
+    import logging
+    logger = logging.getLogger(__name__)
+
+    pool_conn = get_pool_connection()
+    if pool_conn is not None:
+        logger.info("[AUTH] get_db_connection → POOL ✓ (conexión reutilizada)")
+        return pool_conn
+
+    logger.warning("[AUTH] get_db_connection → POOL no disponible, cayendo a fallback directo (hosts secuenciales)")
+
     project_ref = settings.SUPABASE_URL.replace("https://", "").split(".")[0]
     hosts = [
         ("aws-0-sa-east-1.pooler.supabase.com", 6543, f"postgres.{project_ref}"),
