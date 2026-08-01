@@ -1,10 +1,19 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import TicketModal from '@/components/ticket_modal'
+import dynamic from 'next/dynamic'
+import { Source_Serif_4 } from 'next/font/google'
 import { Search, RefreshCw, Printer, Share2 } from 'lucide-react'
 import { api, ApiClientError } from '@/lib/api-client'
 import type { ComprobanteOut } from '@/lib/api-types'
+
+const sourceSerif = Source_Serif_4({
+  variable: '--font-source-serif-4',
+  subsets: ['latin'],
+  weight: ['400', '500'],
+})
+
+const TicketModal = dynamic(() => import('@/components/ticket_modal'), { ssr: false })
 
 type TicketViewModel = {
   tipoComprobanteNombre: string
@@ -88,7 +97,7 @@ export default function HistoryPage() {
   ]
 
   return (
-    <main className="flex-1 max-w-[1100px] w-full mx-auto px-5 md:px-10 py-8 md:py-14 space-y-6 md:space-y-8">
+    <main className={`${sourceSerif.variable} flex-1 max-w-[1100px] w-full mx-auto px-5 md:px-10 py-8 md:py-14 space-y-6 md:space-y-8`}>
 
       {/* Encabezado */}
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 animate-fade-in-up">

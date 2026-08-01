@@ -3,8 +3,15 @@
 import React, { useState } from 'react'
 import Image from 'next/image'
 import { Camera, CheckCircle2, ScanLine, FileImage } from 'lucide-react'
+import { Source_Serif_4 } from 'next/font/google'
 import { api, ApiClientError } from '@/lib/api-client'
 import type { OcrExtraidoOut } from '@/lib/api-types'
+
+const sourceSerif = Source_Serif_4({
+  variable: '--font-source-serif-4',
+  subsets: ['latin'],
+  weight: ['400', '500'],
+})
 
 const FALLBACK_OCR: OcrExtraidoOut = {
   ruc_proveedor: '20601234567',
@@ -47,7 +54,7 @@ export default function ExpensesPage() {
   }
 
   return (
-    <main className="flex-1 max-w-[1100px] w-full mx-auto px-5 md:px-10 py-8 md:py-14 space-y-6 md:space-y-8">
+    <main className={`${sourceSerif.variable} flex-1 max-w-[1100px] w-full mx-auto px-5 md:px-10 py-8 md:py-14 space-y-6 md:space-y-8`}>
 
       {/* Encabezado */}
       <header className="animate-fade-in-up">

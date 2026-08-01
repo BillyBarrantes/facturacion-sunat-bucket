@@ -1,12 +1,21 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import TicketModal from '@/components/ticket_modal'
+import dynamic from 'next/dynamic'
+import { Source_Serif_4 } from 'next/font/google'
 import ClientForm from './client-form'
 import { ClipboardList, Send, Plus, Trash2, Pencil, ShieldAlert, Building, Percent, FileText, Receipt } from 'lucide-react'
 import { api, ApiClientError } from '@/lib/api-client'
 import type { DocLookupResponse, DetalleItemIn } from '@/lib/api-types'
 import type { LineItem, ComprobantePreview } from './types'
+
+const sourceSerif = Source_Serif_4({
+  variable: '--font-source-serif-4',
+  subsets: ['latin'],
+  weight: ['400', '500'],
+})
+
+const TicketModal = dynamic(() => import('@/components/ticket_modal'), { ssr: false })
 
 export default function NewInvoicePage() {
   const [tipoComprobante, setTipoComprobante] = useState('01')
@@ -300,7 +309,7 @@ export default function NewInvoicePage() {
   }
 
   return (
-    <main className="flex-1 max-w-[1100px] w-full mx-auto px-5 md:px-10 py-8 md:py-14 space-y-5 md:space-y-6">
+    <main className={`${sourceSerif.variable} flex-1 max-w-[1100px] w-full mx-auto px-5 md:px-10 py-8 md:py-14 space-y-5 md:space-y-6`}>
       {/* Header */}
       <header className="flex flex-col gap-4 pb-6 border-b border-[var(--border)] animate-fade-in-up">
         <div>
