@@ -4,6 +4,7 @@ import React, { useState, createContext, useContext } from 'react'
 import { useRouter } from 'next/navigation'
 import { Building2, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react'
 import { api, ApiClientError } from '@/lib/api-client'
+import { useAuth } from '@/lib/auth-context'
 
 interface AuthContextValue {
   isRegister: boolean
@@ -34,6 +35,7 @@ function Toggle() {
 function AuthCard() {
   const { isRegister, errorMsg, successMsg, isLoading, setErrorMsg, setSuccessMsg, setIsLoading, setIsRegister } = useContext(AuthCtx)
   const router = useRouter()
+  const { login } = useAuth()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -57,8 +59,16 @@ function AuthCard() {
 
         setSuccessMsg('Empresa y usuario creados. Redirigiendo...')
         if (data.access_token) {
-          localStorage.setItem('sunat_token', data.access_token)
-          localStorage.setItem('sunat_company_id', data.company_id)
+          login({
+            access_token: data.access_token,
+            refresh_token: data.refresh_token,
+            user_id: data.user_id,
+            company_id: data.company_id,
+            nombre: data.nombre,
+            role: data.role,
+            company_ruc: data.company_ruc,
+            company_razon_social: data.company_razon_social,
+          })
         }
 
         setTimeout(() => {
@@ -69,8 +79,7 @@ function AuthCard() {
         const data = await api.login({ email, password })
 
         setSuccessMsg('Sesión iniciada. Redirigiendo...')
-        localStorage.setItem('sunat_token', data.access_token)
-        localStorage.setItem('sunat_company_id', data.company_id)
+        login(data)
 
         setTimeout(() => {
           router.push('/billing/new')

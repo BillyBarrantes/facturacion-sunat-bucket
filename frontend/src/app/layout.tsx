@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import type { Metadata } from 'next'
+import { Geist, Geist_Mono } from 'next/font/google'
+import './globals.css'
+import Providers from './Providers'
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,7 +28,9 @@ export default function RootLayout({
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body suppressHydrationWarning className="min-h-full flex flex-col bg-[var(--bg)] text-[var(--fg)]">{children}</body>
+      <body suppressHydrationWarning className="min-h-full flex flex-col bg-[var(--bg)] text-[var(--fg)]">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

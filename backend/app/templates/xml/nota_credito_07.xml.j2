@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
-         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
-         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
-         xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
-         xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2">
+<CreditNote xmlns="urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2"
+            xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+            xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
+            xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+            xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2">
     <ext:UBLExtensions>
         <ext:UBLExtension>
             <ext:ExtensionContent>
@@ -16,10 +16,24 @@
     <cbc:ID>{{ comprobante.serie }}-{{ "%08d"|format(comprobante.numero) }}</cbc:ID>
     <cbc:IssueDate>{{ comprobante.fecha_emision.strftime('%Y-%m-%d') }}</cbc:IssueDate>
     <cbc:IssueTime>{{ comprobante.fecha_emision.strftime('%H:%M:%S') }}</cbc:IssueTime>
-    <cbc:InvoiceTypeCode listID="0101">{{ comprobante.tipo_comprobante }}</cbc:InvoiceTypeCode>
+    <cbc:CreditNoteTypeCode listID="0101">{{ comprobante.tipo_comprobante }}</cbc:CreditNoteTypeCode>
     <cbc:Note languageLocaleID="1000">{{ comprobante.monto_letras }}</cbc:Note>
     <cbc:DocumentCurrencyCode>{{ comprobante.moneda }}</cbc:DocumentCurrencyCode>
-    
+
+    <!-- Motivo de la Nota de Crédito -->
+    <cac:DiscrepancyResponse>
+        <cbc:ReferenceID>{{ comprobante.referencia.serie }}-{{ "%08d"|format(comprobante.referencia.numero) }}</cbc:ReferenceID>
+        <cbc:Description><![CDATA[{{ comprobante.motivo }}]]></cbc:Description>
+    </cac:DiscrepancyResponse>
+
+    <!-- Comprobante que se modifica (01 Factura / 03 Boleta) -->
+    <cac:BillingReference>
+        <cac:InvoiceDocumentReference>
+            <cbc:ID>{{ comprobante.referencia.serie }}-{{ "%08d"|format(comprobante.referencia.numero) }}</cbc:ID>
+            <cbc:DocumentTypeCode>{{ comprobante.referencia.tipo }}</cbc:DocumentTypeCode>
+        </cac:InvoiceDocumentReference>
+    </cac:BillingReference>
+
     <!-- DATOS DEL EMISOR -->
     <cac:AccountingSupplierParty>
         <cac:Party>
@@ -40,7 +54,7 @@
             </cac:PartyLegalEntity>
         </cac:Party>
     </cac:AccountingSupplierParty>
-    
+
     <!-- DATOS DEL RECEPTOR/CLIENTE -->
     <cac:AccountingCustomerParty>
         <cac:Party>
@@ -52,7 +66,7 @@
             </cac:PartyLegalEntity>
         </cac:Party>
     </cac:AccountingCustomerParty>
-    
+
     <!-- FORMA DE PAGO -->
     <cac:PaymentTerms>
         <cbc:ID>FormaPago</cbc:ID>
@@ -60,23 +74,6 @@
         <cbc:Amount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.importe_total) }}</cbc:Amount>
     </cac:PaymentTerms>
 
-    {% if comprobante.anticipo_total and comprobante.anticipo_total > 0 %}
-    <!-- ANTICIPOS / PAGOS ANTICIPADOS -->
-    <cac:PrepaidPayment>
-        <cbc:ID>1</cbc:ID>
-        <cbc:PaidAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.anticipo_total) }}</cbc:PaidAmount>
-    </cac:PrepaidPayment>
-    {% endif %}
-
-    {% if comprobante.descuento_global and comprobante.descuento_global > 0 %}
-    <!-- DESCUENTO GLOBAL (AllowanceCharge) -->
-    <cac:AllowanceCharge>
-        <cbc:ChargeIndicator>false</cbc:ChargeIndicator>
-        <cbc:AllowanceChargeReasonCode>00</cbc:AllowanceChargeReasonCode>
-        <cbc:Amount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.descuento_global) }}</cbc:Amount>
-    </cac:AllowanceCharge>
-    {% endif %}
-    
     <!-- TOTALES IMPUESTOS (IGV) -->
     <cac:TaxTotal>
         <cbc:TaxAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.total_igv) }}</cbc:TaxAmount>
@@ -92,25 +89,19 @@
             </cac:TaxCategory>
         </cac:TaxSubtotal>
     </cac:TaxTotal>
-    
+
     <!-- TOTALES IMPORTE -->
     <cac:LegalMonetaryTotal>
         <cbc:LineExtensionAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.total_gravado) }}</cbc:LineExtensionAmount>
-        {% if comprobante.descuento_global and comprobante.descuento_global > 0 %}
-        <cbc:AllowanceTotalAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.descuento_global) }}</cbc:AllowanceTotalAmount>
-        {% endif %}
         <cbc:TaxInclusiveAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.importe_total) }}</cbc:TaxInclusiveAmount>
-        {% if comprobante.anticipo_total and comprobante.anticipo_total > 0 %}
-        <cbc:PrepaidAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.anticipo_total) }}</cbc:PrepaidAmount>
-        {% endif %}
         <cbc:PayableAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.importe_total) }}</cbc:PayableAmount>
     </cac:LegalMonetaryTotal>
-    
+
     <!-- ÍTEMS / LÍNEAS -->
     {% for item in detalles %}
-    <cac:InvoiceLine>
+    <cac:CreditNoteLine>
         <cbc:ID>{{ loop.index }}</cbc:ID>
-        <cbc:InvoicedQuantity unitCode="{{ item.unidad_medida }}">{{ "%.2f"|format(item.cantidad) }}</cbc:InvoicedQuantity>
+        <cbc:CreditedQuantity unitCode="{{ item.unidad_medida }}">{{ "%.2f"|format(item.cantidad) }}</cbc:CreditedQuantity>
         <cbc:LineExtensionAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(item.valor_unitario * item.cantidad) }}</cbc:LineExtensionAmount>
         <cac:PricingReference>
             <cac:AlternativeConditionPrice>
@@ -145,6 +136,6 @@
         <cac:Price>
             <cbc:PriceAmount currencyID="{{ comprobante.moneda }}">{{ "%.4f"|format(item.valor_unitario) }}</cbc:PriceAmount>
         </cac:Price>
-    </cac:InvoiceLine>
+    </cac:CreditNoteLine>
     {% endfor %}
-</Invoice>
+</CreditNote>

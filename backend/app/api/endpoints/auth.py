@@ -117,7 +117,12 @@ def register_company(payload: RegisterCompanySchema):
             "company_id": str(company_id),
             "user_id": user_id,
             "access_token": session_data.get("access_token"),
-            "token_type": "bearer"
+            "refresh_token": session_data.get("refresh_token", ""),
+            "token_type": "bearer",
+            "nombre": payload.razon_social,
+            "role": "ADMIN",
+            "company_ruc": payload.ruc,
+            "company_razon_social": payload.razon_social,
         }
 
     except HTTPException:
@@ -179,12 +184,78 @@ def login_user(payload: LoginSchema):
 
         return {
             "access_token": auth_data["access_token"],
+            "refresh_token": auth_data.get("refresh_token", ""),
             "user_id": user_id,
             "company_id": str(profile[0]),
             "nombre": profile[1],
             "role": profile[2],
             "company_ruc": profile[3],
             "company_razon_social": profile[4]
+        }
+    finally:
+        cur.close()
+        conn.close()
+
+
+@router.post("/refresh")
+def refresh_token(payload: Dict[str, Any]):
+    """
+    Renueva el access_token usando el refresh_token de Supabase Auth.
+    Devuelve el mismo shape que /login para rehidratar la sesión sin re-autenticar.
+    """
+    refresh = (payload.get("refresh_token") or "").strip()
+    if not refresh:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="refresh_token es obligatorio",
+        )
+
+    service_role_key = settings.SUPABASE_SERVICE_ROLE_KEY.strip()
+    token_url = f"{settings.SUPABASE_URL.strip()}/auth/v1/token?grant_type=refresh_token"
+    headers = {
+        "apikey": service_role_key,
+        "Content-Type": "application/json",
+    }
+    with httpx.Client(timeout=15.0) as client:
+        res = client.post(token_url, headers=headers, json={"refresh_token": refresh})
+
+    if res.status_code != 200:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="El refresh_token es inválido o ha expirado",
+        )
+
+    auth_data = res.json()
+    user_id = auth_data["user"]["id"]
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            SELECT p.company_id, p.nombre_completo, p.role, c.ruc, c.razon_social 
+            FROM public.profiles p
+            JOIN public.companies c ON p.company_id = c.id
+            WHERE p.id = %s
+            """,
+            (user_id,)
+        )
+        profile = cur.fetchone()
+        if not profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="El usuario no tiene una empresa asociada",
+            )
+
+        return {
+            "access_token": auth_data["access_token"],
+            "refresh_token": auth_data.get("refresh_token", ""),
+            "user_id": user_id,
+            "company_id": str(profile[0]),
+            "nombre": profile[1],
+            "role": profile[2],
+            "company_ruc": profile[3],
+            "company_razon_social": profile[4],
         }
     finally:
         cur.close()

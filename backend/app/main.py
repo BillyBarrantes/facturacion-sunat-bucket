@@ -17,22 +17,21 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
 )
 
-# Configuración de CORS para Next.js Frontend y Vercel
+allowed_origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Middleware de rate limiting (opt-in via RATE_LIMIT_ENABLED=true)
 app.add_middleware(RateLimitMiddleware)
 
-# Incluir routers del API v1
 app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(comprobantes_router, prefix=settings.API_V1_STR)
 app.include_router(dashboard_router, prefix=settings.API_V1_STR)
@@ -42,7 +41,7 @@ app.include_router(purchases_router, prefix=settings.API_V1_STR)
 
 @app.on_event("startup")
 def startup():
-    logger.info("Iniciando aplicación...")
+    logger.info("Iniciando aplicacion...")
     try:
         init_pool()
     except Exception as e:
@@ -55,9 +54,8 @@ def startup():
 
 @app.on_event("shutdown")
 def shutdown():
-    logger.info("Deteniendo aplicación...")
+    logger.info("Deteniendo aplicacion...")
     close_pool()
-
 
 
 @app.get("/")
@@ -66,13 +64,14 @@ def root():
         "status": "online",
         "app": settings.PROJECT_NAME,
         "version": settings.VERSION,
-        "environment": settings.SUNAT_ENV
+        "environment": settings.SUNAT_ENV,
     }
 
 
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
 
 @app.get(f"{settings.API_V1_STR}/me")
 def get_current_user_profile(user: Dict[str, Any] = Depends(require_tenant)):
@@ -81,5 +80,5 @@ def get_current_user_profile(user: Dict[str, Any] = Depends(require_tenant)):
         "company_id": user["company_id"],
         "role": user["role"],
         "nombre": user["nombre_completo"],
-        "email": user["email"]
+        "email": user["email"],
     }

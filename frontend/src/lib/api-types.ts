@@ -12,7 +12,12 @@ export interface RegisterResponse {
   company_id: string
   user_id: string
   access_token: string
+  refresh_token?: string
   token_type: string
+  nombre: string
+  role: string
+  company_ruc: string
+  company_razon_social: string
 }
 
 export interface LoginRequest {
@@ -22,6 +27,7 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   access_token: string
+  refresh_token?: string
   user_id: string
   company_id: string
   nombre: string

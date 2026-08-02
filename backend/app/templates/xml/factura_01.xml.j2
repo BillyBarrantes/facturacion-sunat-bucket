@@ -59,6 +59,23 @@
         <cbc:PaymentMeansID>Contado</cbc:PaymentMeansID>
         <cbc:Amount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.importe_total) }}</cbc:Amount>
     </cac:PaymentTerms>
+
+    {% if comprobante.anticipo_total and comprobante.anticipo_total > 0 %}
+    <!-- ANTICIPOS / PAGOS ANTICIPADOS -->
+    <cac:PrepaidPayment>
+        <cbc:ID>1</cbc:ID>
+        <cbc:PaidAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.anticipo_total) }}</cbc:PaidAmount>
+    </cac:PrepaidPayment>
+    {% endif %}
+
+    {% if comprobante.descuento_global and comprobante.descuento_global > 0 %}
+    <!-- DESCUENTO GLOBAL (AllowanceCharge) -->
+    <cac:AllowanceCharge>
+        <cbc:ChargeIndicator>false</cbc:ChargeIndicator>
+        <cbc:AllowanceChargeReasonCode>00</cbc:AllowanceChargeReasonCode>
+        <cbc:Amount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.descuento_global) }}</cbc:Amount>
+    </cac:AllowanceCharge>
+    {% endif %}
     
     <!-- TOTALES IMPUESTOS (IGV) -->
     <cac:TaxTotal>
@@ -79,7 +96,13 @@
     <!-- TOTALES IMPORTE -->
     <cac:LegalMonetaryTotal>
         <cbc:LineExtensionAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.total_gravado) }}</cbc:LineExtensionAmount>
+        {% if comprobante.descuento_global and comprobante.descuento_global > 0 %}
+        <cbc:AllowanceTotalAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.descuento_global) }}</cbc:AllowanceTotalAmount>
+        {% endif %}
         <cbc:TaxInclusiveAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.importe_total) }}</cbc:TaxInclusiveAmount>
+        {% if comprobante.anticipo_total and comprobante.anticipo_total > 0 %}
+        <cbc:PrepaidAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.anticipo_total) }}</cbc:PrepaidAmount>
+        {% endif %}
         <cbc:PayableAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.importe_total) }}</cbc:PayableAmount>
     </cac:LegalMonetaryTotal>
     

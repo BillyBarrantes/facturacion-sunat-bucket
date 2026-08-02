@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS public.comprobantes (
     total_impuestos NUMERIC(12, 2) DEFAULT 0.00,
     importe_total NUMERIC(12, 2) NOT NULL,
     metodo_pago VARCHAR(20) DEFAULT 'EFECTIVO', -- EFECTIVO, YAPE, PLIN, TRANSFERENCIA, TARJETA
-    estado_sunat VARCHAR(20) DEFAULT 'PENDIENTE', -- PENDIENTE, ACEPTADO, RECHAZADO, OBSERVADO, ANULADO
+    estado_sunat VARCHAR(20) DEFAULT 'PENDIENTE', -- PENDIENTE, PENDIENTE_RC, PENDIENTE_BAJA, ACEPTADO, RECHAZADO, OBSERVADO, ANULADO
     codigo_error_sunat VARCHAR(20),
     mensaje_sunat TEXT,
     traduccion_ai_sunat TEXT,
@@ -124,6 +124,10 @@ CREATE TABLE IF NOT EXISTS public.comprobantes (
     xml_url TEXT,
     cdr_url TEXT,
     pdf_url TEXT,
+    motivo TEXT, -- Motivo de la NC/ND
+    doc_referencia_tipo VARCHAR(2), -- Tipo del CPE de referencia (01/03) para NC/ND
+    doc_referencia_serie VARCHAR(4),
+    doc_referencia_numero INT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT unique_comprobante_per_company UNIQUE (company_id, tipo_comprobante, serie, numero)
@@ -145,6 +149,21 @@ CREATE TABLE IF NOT EXISTS public.comprobante_detalles (
     tipo_afectacion_igv VARCHAR(2) DEFAULT '10',
     igv NUMERIC(12, 2) NOT NULL,
     total NUMERIC(12, 2) NOT NULL
+);
+
+-- ------------------------------------------------------------------------------
+-- 7b. TABLA: CORRELATIVOS (Control atómico de numeración por tenant)
+-- Usada con SELECT ... FOR UPDATE para evitar duplicados en emisión concurrente.
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.correlativos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    tipo_comprobante VARCHAR(2) NOT NULL,
+    serie VARCHAR(4) NOT NULL,
+    ultimo_numero INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT unique_correlativo_per_company UNIQUE (company_id, tipo_comprobante, serie)
 );
 
 -- ------------------------------------------------------------------------------
@@ -258,6 +277,13 @@ CREATE POLICY "compras_tenant_policy" ON public.compras
 -- 8. CAJA MOVIMIENTOS: Aislamiento por company_id
 DROP POLICY IF EXISTS "caja_tenant_policy" ON public.caja_movimientos;
 CREATE POLICY "caja_tenant_policy" ON public.caja_movimientos
+    FOR ALL
+    USING (company_id = public.auth_company_id())
+    WITH CHECK (company_id = public.auth_company_id());
+
+-- 9. CORRELATIVOS: Aislamiento por company_id
+DROP POLICY IF EXISTS "correlativos_tenant_policy" ON public.correlativos;
+CREATE POLICY "correlativos_tenant_policy" ON public.correlativos
     FOR ALL
     USING (company_id = public.auth_company_id())
     WITH CHECK (company_id = public.auth_company_id());

@@ -2,14 +2,15 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/lib/auth-context'
 
 export function useAuthGuard() {
   const router = useRouter()
+  const { isAuthenticated } = useAuth()
 
   useEffect(() => {
-    const token = localStorage.getItem('sunat_token')
-    if (!token) {
+    if (!isAuthenticated) {
       router.replace('/')
     }
-  }, [router])
+  }, [isAuthenticated, router])
 }

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VoidedDocuments xmlns="urn:oasis:names:specification:ubl:schema:xsd:VoidedDocuments-2"
+                 xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+                 xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
+                 xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+                 xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2">
+    <ext:UBLExtensions>
+        <ext:UBLExtension>
+            <ext:ExtensionContent>
+                <!-- La Firma Digital será inyectada aquí por signer.py -->
+            </ext:ExtensionContent>
+        </ext:UBLExtension>
+    </ext:UBLExtensions>
+    <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+    <cbc:CustomizationID>1.1</cbc:CustomizationID>
+    <cbc:ID>{{ baja.id }}</cbc:ID>
+    <cbc:IssueDate>{{ baja.issue_date }}</cbc:IssueDate>
+
+    <!-- DATOS DEL EMISOR -->
+    <cac:AccountingSupplierParty>
+        <cac:Party>
+            <cac:PartyIdentification>
+                <cbc:ID schemeID="6">{{ emisor.ruc }}</cbc:ID>
+            </cac:PartyIdentification>
+            <cac:PartyName>
+                <cbc:Name><![CDATA[{{ emisor.nombre_comercial or emisor.razon_social }}]]></cbc:Name>
+            </cac:PartyName>
+            <cac:PartyLegalEntity>
+                <cbc:RegistrationName><![CDATA[{{ emisor.razon_social }}]]></cbc:RegistrationName>
+                <cac:RegistrationAddress>
+                    <cbc:AddressTypeCode>{{ emisor.ubigeo }}</cbc:AddressTypeCode>
+                    <cac:AddressLine>
+                        <cbc:Line><![CDATA[{{ emisor.direccion }}]]></cbc:Line>
+                    </cac:AddressLine>
+                </cac:RegistrationAddress>
+            </cac:PartyLegalEntity>
+        </cac:Party>
+    </cac:AccountingSupplierParty>
+
+    <!-- COMPROBANTES A DAR DE BAJA -->
+    {% for linea in lineas %}
+    <cac:VoidedDocumentsLine>
+        <cbc:LineID>{{ loop.index }}</cbc:LineID>
+        <cbc:DocumentTypeCode>{{ linea.tipo_comprobante }}</cbc:DocumentTypeCode>
+        <cbc:DocumentSerialID>{{ linea.serie }}</cbc:DocumentSerialID>
+        <cbc:DocumentNumberID>{{ "%08d"|format(linea.numero) }}</cbc:DocumentNumberID>
+        <cbc:VoidReasonDescription><![CDATA[{{ linea.motivo }}]]></cbc:VoidReasonDescription>
+    </cac:VoidedDocumentsLine>
+    {% endfor %}
+</VoidedDocuments>

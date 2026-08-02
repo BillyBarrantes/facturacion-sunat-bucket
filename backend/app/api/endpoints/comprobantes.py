@@ -9,6 +9,7 @@ from app.services.signer import XMLDigitalSigner
 from app.services.sunat_client import SunatSOAPClient
 from app.services.pdf_generator import PDFGenerator
 from app.services.doc_lookup import lookup_document
+from app.services.correlativo_service import next_correlativo, peek_correlativo
 
 router = APIRouter(prefix="/comprobantes", tags=["Comprobantes Electrónicos"])
 
@@ -85,11 +86,15 @@ def obtener_correlativo(
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute(
-            "SELECT COALESCE(MAX(numero), 0) FROM public.comprobantes WHERE company_id = %s AND tipo_comprobante = %s AND serie = %s",
-            (current_user["company_id"], tipo_comprobante, serie)
+        siguiente = peek_correlativo(
+            cur, current_user["company_id"], tipo_comprobante, serie
         )
-        siguiente = cur.fetchone()[0] + 1
+        if siguiente is None:
+            cur.execute(
+                "SELECT COALESCE(MAX(numero), 0) FROM public.comprobantes WHERE company_id = %s AND tipo_comprobante = %s AND serie = %s",
+                (current_user["company_id"], tipo_comprobante, serie)
+            )
+            siguiente = cur.fetchone()[0] + 1
         return {"success": True, "siguiente_numero": siguiente}
     finally:
         cur.close()
@@ -134,6 +139,11 @@ class EmitirComprobanteSchema(BaseModel):
     descuento_global: Optional[float] = Field(0.0, example=0.0)
     anticipo_total: Optional[float] = Field(0.0, example=0.0)
     items: List[DetalleItemSchema]
+    # Campos para Notas de Crédito (07) y Notas de Débito (08)
+    comprobante_referencia_tipo: Optional[str] = Field(None, description="Tipo del CPE original (01 o 03)")
+    comprobante_referencia_serie: Optional[str] = Field(None, description="Serie del CPE original (F001/B001)")
+    comprobante_referencia_numero: Optional[int] = Field(None, description="Número del CPE original")
+    motivo: Optional[str] = Field(None, description="Motivo de la nota (ej: ANULACION DE LA OPERACION)")
 
 @router.post("/emitir")
 def emitir_comprobante(
@@ -179,6 +189,19 @@ def emitir_comprobante(
             "sol_pass": empresa_row[8] or "MODDATOS"
         }
 
+    # 2. Validar Notas de Crédito/Débito: requieren comprobante de referencia
+    if payload.tipo_comprobante in ("07", "08"):
+        if not (payload.comprobante_referencia_tipo and payload.comprobante_referencia_serie and payload.comprobante_referencia_numero):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Para Notas de Crédito/Débito es obligatorio indicar el comprobante de referencia (tipo, serie y número)."
+            )
+        if payload.comprobante_referencia_tipo not in ("01", "03"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El comprobante de referencia debe ser Factura (01) o Boleta (03)."
+            )
+
     # 2. Calcular montos fiscales (IGV 18%)
     total_gravado = 0.0
     total_igv = 0.0
@@ -219,16 +242,41 @@ def emitir_comprobante(
     descuento = payload.descuento_global or 0.0
     anticipo = payload.anticipo_total or 0.0
 
-    total_gravado_neto = max(0.0, total_gravado - descuento)
-    total_igv = round(total_gravado_neto * 0.18, 2)
-    importe_total = max(0.0, total_gravado_neto + total_igv - anticipo)
+    # Prorratear el descuento global sobre cada línea para que el IGV por ítem
+    # siga siendo coherente con los totales (regla SUNAT: TaxTotal = suma de líneas).
+    if descuento > 0 and total_gravado > 0:
+        factor = (total_gravado - descuento) / total_gravado
+        detalles_calculados_netos = []
+        total_gravado_neto = 0.0
+        total_igv = 0.0
+        importe_total = 0.0
+        for d in detalles_calculados:
+            base_neto = round(d["total"] / 1.18 * factor, 4)
+            igv_neto = round(base_neto * 0.18, 2)
+            total_neto = round(base_neto + igv_neto, 2)
+            d_neto = dict(d)
+            d_neto["valor_unitario"] = round(base_neto / d["cantidad"], 4) if d["cantidad"] else 0.0
+            d_neto["igv"] = igv_neto
+            d_neto["total"] = total_neto
+            detalles_calculados_netos.append(d_neto)
+            total_gravado_neto += base_neto
+            total_igv += igv_neto
+            importe_total += total_neto
+        detalles_calculados = detalles_calculados_netos
+        total_gravado_neto = round(total_gravado_neto, 2)
+        total_igv = round(total_igv, 2)
+        importe_total = round(importe_total, 2)
+    else:
+        total_gravado_neto = round(total_gravado, 2)
+        total_igv = round(total_igv, 2)
+        importe_total = round(total_gravado_neto + total_igv, 2)
 
-    # 2.5 Calcular el número correlativo correcto desde la BD
-    cur.execute(
-        "SELECT COALESCE(MAX(numero), 0) FROM public.comprobantes WHERE company_id = %s AND tipo_comprobante = %s AND serie = %s",
-        (company_id, payload.tipo_comprobante, payload.serie)
+    importe_total = max(0.0, importe_total - anticipo)
+
+    # 2.5 Calcular el número correlativo correcto desde la BD (bloqueo atómico FOR UPDATE)
+    siguiente_numero = next_correlativo(
+        cur, company_id, payload.tipo_comprobante, payload.serie
     )
-    siguiente_numero = cur.fetchone()[0] + 1
 
     comprobante_data = {
         "tipo_comprobante": payload.tipo_comprobante,
@@ -243,6 +291,14 @@ def emitir_comprobante(
         "anticipo_total": round(anticipo, 2),
         "metodo_pago": payload.metodo_pago
     }
+
+    if payload.tipo_comprobante in ("07", "08"):
+        comprobante_data["motivo"] = payload.motivo or "ANULACION DE LA OPERACION"
+        comprobante_data["referencia"] = {
+            "tipo": payload.comprobante_referencia_tipo,
+            "serie": payload.comprobante_referencia_serie,
+            "numero": payload.comprobante_referencia_numero,
+        }
 
     cliente_data = {
         "tipo_doc": payload.cliente_tipo_doc,
@@ -288,15 +344,19 @@ def emitir_comprobante(
         cur.execute(
             """
             INSERT INTO public.comprobantes 
-            (company_id, cliente_id, tipo_comprobante, serie, numero, fecha_emision, moneda, total_gravado, total_igv, importe_total, metodo_pago, estado_sunat, codigo_error_sunat, mensaje_sunat, hash_cpe)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (company_id, cliente_id, tipo_comprobante, serie, numero, fecha_emision, moneda, total_gravado, total_igv, importe_total, metodo_pago, estado_sunat, codigo_error_sunat, mensaje_sunat, hash_cpe, motivo, doc_referencia_tipo, doc_referencia_serie, doc_referencia_numero)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
             """,
             (
                 company_id, cliente_id, payload.tipo_comprobante, payload.serie, siguiente_numero,
                 comprobante_data["fecha_emision"], payload.moneda, comprobante_data["total_gravado"],
                 comprobante_data["total_igv"], comprobante_data["importe_total"], payload.metodo_pago,
-                resultado_sunat["estado"], resultado_sunat["codigo_error"], resultado_sunat["mensaje_sunat"], hash_cpe
+                resultado_sunat["estado"], resultado_sunat["codigo_error"], resultado_sunat["mensaje_sunat"], hash_cpe,
+                comprobante_data.get("motivo"),
+                comprobante_data.get("referencia", {}).get("tipo"),
+                comprobante_data.get("referencia", {}).get("serie"),
+                comprobante_data.get("referencia", {}).get("numero"),
             )
         )
         comprobante_id = cur.fetchone()[0]
@@ -329,3 +389,287 @@ def emitir_comprobante(
         "mensaje_sunat": resultado_sunat["mensaje_sunat"],
         "hash_cpe": hash_cpe
     }
+
+
+@router.post("/get-status-cdr/{comprobante_id}")
+def consultar_estado_cdr(
+    comprobante_id: str,
+    current_user: Dict[str, Any] = Depends(require_tenant),
+):
+    """
+    Consulta el CDR de un comprobante pendiente (PENDIENTE/PENDIENTE_RC/PENDIENTE_BAJA)
+    vía getStatus de SUNAT y actualiza el estado en la BD.
+    """
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            SELECT c.serie, c.numero, c.tipo_comprobante, c.estado_sunat,
+                   comp.ruc, comp.sol_user, comp.sol_pass_encrypted
+            FROM public.comprobantes c
+            JOIN public.companies comp ON comp.id = c.company_id
+            WHERE c.id = %s AND c.company_id = %s
+            """,
+            (comprobante_id, current_user["company_id"])
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Comprobante no encontrado")
+
+        serie, numero, tipo_comprobante, estado_actual = row[0], row[1], row[2], row[3]
+        emisor_ruc, sol_user, sol_pass = row[4], row[5] or "MODDATOS", row[6] or "MODDATOS"
+
+        if estado_actual in ("ACEPTADO", "RECHAZADO", "OBSERVADO", "ANULADO"):
+            return {
+                "success": True,
+                "estado_sunat": estado_actual,
+                "mensaje_sunat": "El comprobante ya tiene un estado final procesado.",
+            }
+
+        filename_base = f"{emisor_ruc}-{tipo_comprobante}-{serie}-{numero:08d}"
+        soap_client = SunatSOAPClient()
+        resultado = soap_client.get_status(
+            ruc=emisor_ruc,
+            sol_user=sol_user,
+            sol_pass=sol_pass,
+            filename_base=filename_base,
+        )
+
+        if resultado["estado"] != "PENDIENTE":
+            cur.execute(
+                """
+                UPDATE public.comprobantes
+                SET estado_sunat = %s, codigo_error_sunat = %s, mensaje_sunat = %s, updated_at = NOW()
+                WHERE id = %s AND company_id = %s
+                """,
+                (resultado["estado"], resultado["codigo_error"], resultado["mensaje_sunat"], comprobante_id, current_user["company_id"])
+            )
+            conn.commit()
+
+        return {
+            "success": True,
+            "estado_sunat": resultado["estado"],
+            "codigo_error": resultado["codigo_error"],
+            "mensaje_sunat": resultado["mensaje_sunat"],
+        }
+    finally:
+        cur.close()
+        conn.close()
+
+
+class EnviarBajaSchema(BaseModel):
+    comprobantes_ids: List[str] = Field(..., description="IDs de los comprobantes a dar de baja")
+    motivo: str = Field("ERROR EN DATOS DEL COMPROBANTE", description="Motivo de la baja")
+
+
+@router.post("/enviar-baja")
+def enviar_comunicacion_baja(
+    payload: EnviarBajaSchema,
+    current_user: Dict[str, Any] = Depends(require_tenant),
+):
+    """
+    Genera y envía una Comunicación de Baja (RA) para comprobantes emitidos
+    por BETA que necesitan anulación, y marca los comprobantes como PENDIENTE_BAJA.
+    """
+    if not payload.comprobantes_ids:
+        raise HTTPException(status_code=400, detail="Se requiere al menos un comprobante a dar de baja.")
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        placeholders = ",".join(["%s"] * len(payload.comprobantes_ids))
+        cur.execute(
+            f"""
+            SELECT c.id, c.serie, c.numero, c.tipo_comprobante, c.estado_sunat, c.cliente_id,
+                   cl.tipo_doc, cl.num_doc, cl.razon_social,
+                   comp.ruc, comp.razon_social AS emisor_rs, comp.nombre_comercial,
+                   comp.direccion, comp.ubigeo, comp.sol_user, comp.sol_pass_encrypted
+            FROM public.comprobantes c
+            JOIN public.companies comp ON comp.id = c.company_id
+            LEFT JOIN public.clientes cl ON cl.id = c.cliente_id
+            WHERE c.company_id = %s AND c.id IN ({placeholders})
+            """,
+            [current_user["company_id"]] + payload.comprobantes_ids
+        )
+        rows = cur.fetchall()
+        if not rows:
+            raise HTTPException(status_code=404, detail="No se encontraron comprobantes para dar de baja.")
+
+        emisor = {
+            "ruc": rows[0][9],
+            "razon_social": rows[0][10],
+            "nombre_comercial": rows[0][11],
+            "direccion": rows[0][12],
+            "ubigeo": rows[0][13],
+            "sol_user": rows[0][14] or "MODDATOS",
+            "sol_pass": rows[0][15] or "MODDATOS",
+        }
+
+        lineas = []
+        for r in rows:
+            lineas.append({
+                "tipo_comprobante": r[3],
+                "serie": r[1],
+                "numero": r[2],
+                "motivo": payload.motivo,
+            })
+
+        hoy = datetime.now().strftime("%Y%m%d")
+        correlativo_baja = datetime.now().strftime("%H%M%S")
+        id_baja = f"RA-{hoy}-{correlativo_baja}"
+        baja = {"id": id_baja, "issue_date": datetime.now().strftime("%Y-%m-%d")}
+
+        builder = SunatXMLBuilder()
+        xml_raw = builder.build_voided_xml(baja, emisor, lineas)
+
+        signer = XMLDigitalSigner()
+        xml_firmado, hash_cpe = signer.sign_xml(xml_raw)
+
+        filename_base = f"{emisor['ruc']}-RA-{hoy}-{correlativo_baja}"
+        soap_client = SunatSOAPClient()
+        resultado_sunat = soap_client.send_summary(
+            ruc=emisor["ruc"],
+            sol_user=emisor["sol_user"],
+            sol_pass=emisor["sol_pass"],
+            filename_base=filename_base,
+            xml_content=xml_firmado
+        )
+
+        # Marcar comprobantes como PENDIENTE_BAJA (hasta obtener CDR de la RA)
+        cur.execute(
+            f"""
+            UPDATE public.comprobantes
+            SET estado_sunat = 'PENDIENTE_BAJA', mensaje_sunat = %s, updated_at = NOW()
+            WHERE company_id = %s AND id IN ({placeholders})
+            """,
+            [resultado_sunat["mensaje_sunat"], current_user["company_id"]] + payload.comprobantes_ids
+        )
+        conn.commit()
+
+        return {
+            "success": True,
+            "id_baja": id_baja,
+            "estado_sunat": resultado_sunat["estado"],
+            "codigo_error": resultado_sunat["codigo_error"],
+            "mensaje_sunat": resultado_sunat["mensaje_sunat"],
+            "comprobantes_bajados": [r[1] for r in rows],
+        }
+    finally:
+        cur.close()
+        conn.close()
+
+
+class EnviarResumenSchema(BaseModel):
+    comprobantes_ids: List[str] = Field(..., description="IDs de boletas a incluir en el resumen diario")
+
+
+@router.post("/enviar-resumen")
+def enviar_resumen_diario(
+    payload: EnviarResumenSchema,
+    current_user: Dict[str, Any] = Depends(require_tenant),
+):
+    """
+    Genera y envía un Resumen Diario de Comprobantes (RC) para boletas,
+    y marca los comprobantes como PENDIENTE_RC hasta obtener el CDR.
+    """
+    if not payload.comprobantes_ids:
+        raise HTTPException(status_code=400, detail="Se requiere al menos un comprobante para el resumen.")
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        placeholders = ",".join(["%s"] * len(payload.comprobantes_ids))
+        cur.execute(
+            f"""
+            SELECT c.id, c.serie, c.numero, c.tipo_comprobante, c.total_gravado, c.total_igv, c.importe_total,
+                   cl.tipo_doc, cl.num_doc, cl.razon_social,
+                   comp.ruc, comp.razon_social AS emisor_rs, comp.nombre_comercial,
+                   comp.direccion, comp.ubigeo, comp.sol_user, comp.sol_pass_encrypted
+            FROM public.comprobantes c
+            JOIN public.companies comp ON comp.id = c.company_id
+            LEFT JOIN public.clientes cl ON cl.id = c.cliente_id
+            WHERE c.company_id = %s AND c.id IN ({placeholders})
+            """,
+            [current_user["company_id"]] + payload.comprobantes_ids
+        )
+        rows = cur.fetchall()
+        if not rows:
+            raise HTTPException(status_code=404, detail="No se encontraron comprobantes para el resumen.")
+
+        emisor = {
+            "ruc": rows[0][10],
+            "razon_social": rows[0][11],
+            "nombre_comercial": rows[0][12],
+            "direccion": rows[0][13],
+            "ubigeo": rows[0][14],
+            "sol_user": rows[0][15] or "MODDATOS",
+            "sol_pass": rows[0][16] or "MODDATOS",
+        }
+
+        lineas = []
+        for r in rows:
+            cliente_line = None
+            if r[7] and r[8]:
+                cliente_line = {
+                    "tipo_doc": r[7],
+                    "num_doc": r[8],
+                    "razon_social": r[9] or "CLIENTE",
+                }
+            lineas.append({
+                "tipo_comprobante": r[3],
+                "serie": r[1],
+                "numero": r[2],
+                "total_gravado": float(r[4] or 0),
+                "total_igv": float(r[5] or 0),
+                "importe_total": float(r[6] or 0),
+                "cliente": cliente_line,
+            })
+
+        hoy = datetime.now().strftime("%Y%m%d")
+        correlativo_rc = datetime.now().strftime("%H%M%S")
+        id_rc = f"RC-{hoy}-{correlativo_rc}"
+        resumen = {
+            "id": id_rc,
+            "reference_date": datetime.now().strftime("%Y-%m-%d"),
+            "issue_date": datetime.now().strftime("%Y-%m-%d"),
+            "moneda": "PEN",
+        }
+
+        builder = SunatXMLBuilder()
+        xml_raw = builder.build_summary_xml(resumen, emisor, lineas)
+
+        signer = XMLDigitalSigner()
+        xml_firmado, hash_cpe = signer.sign_xml(xml_raw)
+
+        filename_base = f"{emisor['ruc']}-RC-{hoy}-{correlativo_rc}"
+        soap_client = SunatSOAPClient()
+        resultado_sunat = soap_client.send_summary(
+            ruc=emisor["ruc"],
+            sol_user=emisor["sol_user"],
+            sol_pass=emisor["sol_pass"],
+            filename_base=filename_base,
+            xml_content=xml_firmado
+        )
+
+        cur.execute(
+            f"""
+            UPDATE public.comprobantes
+            SET estado_sunat = 'PENDIENTE_RC', mensaje_sunat = %s, updated_at = NOW()
+            WHERE company_id = %s AND id IN ({placeholders})
+            """,
+            [resultado_sunat["mensaje_sunat"], current_user["company_id"]] + payload.comprobantes_ids
+        )
+        conn.commit()
+
+        return {
+            "success": True,
+            "id_resumen": id_rc,
+            "estado_sunat": resultado_sunat["estado"],
+            "codigo_error": resultado_sunat["codigo_error"],
+            "mensaje_sunat": resultado_sunat["mensaje_sunat"],
+            "comprobantes_incluidos": [r[1] for r in rows],
+        }
+    finally:
+        cur.close()
+        conn.close()
