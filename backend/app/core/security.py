@@ -59,35 +59,49 @@ def _fetch_jwks() -> Dict[str, Any]:
 
 
 def _verify_with_jwks(token: str, jwks: Dict[str, Any]) -> Dict[str, Any]:
-    last_err = None
+    import logging
+    logger = logging.getLogger(__name__)
+    jwks_err: Optional[Exception] = None
 
+    # 1) Leer algoritmo y kid del header del token (no del JWK)
     try:
-        token_alg = jwt.get_unverified_header(token).get("alg")
+        header = jwt.get_unverified_header(token)
+        token_alg = header.get("alg")
+        token_kid = header.get("kid")
     except Exception:
-        token_alg = None
+        raise jwt.InvalidTokenError("Token mal formado: header invalido")
 
-    token_kid = jwt.get_unverified_header(token).get("kid") if token_alg else None
+    if not token_alg:
+        raise jwt.InvalidTokenError("Token mal formado: header sin campo 'alg'")
 
+    # 2) Validar contra JWKS (prioritario)
     for jwk_key in jwks.get("keys", []):
         if token_kid and jwk_key.get("kid") and jwk_key.get("kid") != token_kid:
             continue
         try:
             from jwt import PyJWK
             public_key = PyJWK.from_dict(jwk_key).key
-            if token_alg:
-                return jwt.decode(
-                    token,
-                    key=public_key,
-                    algorithms=[token_alg],
-                    options={"verify_exp": True, "verify_aud": False, "verify_iss": False},
-                    audience="authenticated",
-                )
+            return jwt.decode(
+                token,
+                key=public_key,
+                algorithms=[token_alg],
+                options={"verify_exp": True, "verify_aud": False, "verify_iss": False},
+                audience="authenticated",
+            )
         except Exception as e:
-            last_err = e
+            jwks_err = e
+            logger.warning(
+                "[JWKS] Fallo validando token con JWK "
+                "kid=%s kty=%s alg=%s: %s: %s",
+                jwk_key.get("kid"), jwk_key.get("kty"), jwk_key.get("alg"),
+                type(e).__name__, str(e)[:300],
+            )
             continue
 
+    # 3) Fallback HS256 (tokens legacy locales) — separado de jwks_err
     supabase_jwt_secret = settings.SUPABASE_JWT_SECRET
     if supabase_jwt_secret:
+        logger.warning("[AUTH] JWKS no valido token, intentando fallback HS256 ...")
         try:
             return jwt.decode(
                 token,
@@ -95,11 +109,15 @@ def _verify_with_jwks(token: str, jwks: Dict[str, Any]) -> Dict[str, Any]:
                 algorithms=["HS256"],
                 options={"verify_exp": True, "verify_aud": False, "verify_iss": False},
             )
-        except Exception as e:
-            last_err = e
+        except Exception as hs_err:
+            logger.error(
+                "[AUTH] Fallback HS256 tambien fallo: %s: %s",
+                type(hs_err).__name__, str(hs_err)[:300],
+            )
 
-    if last_err:
-        raise last_err
+    # 4) Lanzar el error real del JWKS — NO el del fallback HS256
+    if jwks_err:
+        raise jwks_err
     raise jwt.InvalidTokenError("No se pudo verificar el token: sin JWK aplicable y sin SUPABASE_JWT_SECRET")
 
 
