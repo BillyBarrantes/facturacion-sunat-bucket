@@ -61,20 +61,27 @@ def _fetch_jwks() -> Dict[str, Any]:
 def _verify_with_jwks(token: str, jwks: Dict[str, Any]) -> Dict[str, Any]:
     last_err = None
 
+    try:
+        token_alg = jwt.get_unverified_header(token).get("alg")
+    except Exception:
+        token_alg = None
+
+    token_kid = jwt.get_unverified_header(token).get("kid") if token_alg else None
+
     for jwk_key in jwks.get("keys", []):
-        key_alg = jwk_key.get("alg")
-        if not key_alg:
+        if token_kid and jwk_key.get("kid") and jwk_key.get("kid") != token_kid:
             continue
         try:
             from jwt import PyJWK
-            public_key = PyJWK.from_dict(jwk_key, algorithm=key_alg).key
-            return jwt.decode(
-                token,
-                key=public_key,
-                algorithms=[key_alg],
-                options={"verify_exp": True, "verify_aud": False, "verify_iss": False},
-                audience="authenticated",
-            )
+            public_key = PyJWK.from_dict(jwk_key).key
+            if token_alg:
+                return jwt.decode(
+                    token,
+                    key=public_key,
+                    algorithms=[token_alg],
+                    options={"verify_exp": True, "verify_aud": False, "verify_iss": False},
+                    audience="authenticated",
+                )
         except Exception as e:
             last_err = e
             continue
@@ -93,7 +100,7 @@ def _verify_with_jwks(token: str, jwks: Dict[str, Any]) -> Dict[str, Any]:
 
     if last_err:
         raise last_err
-    raise jwt.InvalidTokenError("No se pudo verificar el token: JWKS vacio y sin SUPABASE_JWT_SECRET")
+    raise jwt.InvalidTokenError("No se pudo verificar el token: sin JWK aplicable y sin SUPABASE_JWT_SECRET")
 
 
 def _fetch_profile(user_id: str) -> Optional[Dict[str, Any]]:
