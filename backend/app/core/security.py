@@ -83,7 +83,7 @@ def _verify_with_jwks(token: str, jwks: Dict[str, Any]) -> Dict[str, Any]:
             return jwt.decode(
                 token,
                 key=supabase_jwt_secret,
-                algorithms=["HS256"],
+                algorithms=["HS256", "ES256", "RS256"],
                 options={"verify_exp": True, "verify_aud": False, "verify_iss": False},
             )
     except Exception as e:
