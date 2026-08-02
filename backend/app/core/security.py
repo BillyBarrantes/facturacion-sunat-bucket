@@ -48,17 +48,11 @@ def _fetch_jwks() -> Dict[str, Any]:
     import logging
     logger = logging.getLogger(__name__)
 
-    jwks_uri = f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/jwks"
+    jwks_uri = f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/.well-known/jwks.json"
 
-    service_role_key = settings.SUPABASE_SERVICE_ROLE_KEY.strip()
-    if not service_role_key:
-        logger.error("[JWKS] SUPABASE_SERVICE_ROLE_KEY vacio, no se puede fetchar JWKS")
-        return {}
-
-    headers = {"apikey": service_role_key}
     try:
         with httpx.Client(timeout=10.0) as client:
-            res = client.get(jwks_uri, headers=headers)
+            res = client.get(jwks_uri)
             if res.status_code == 200:
                 return res.json()
             logger.warning("[JWKS] fetch HTTP %s: %s", res.status_code, res.text[:200])
