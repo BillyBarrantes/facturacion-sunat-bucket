@@ -62,36 +62,38 @@ def _verify_with_jwks(token: str, jwks: Dict[str, Any]) -> Dict[str, Any]:
     last_err = None
 
     for jwk_key in jwks.get("keys", []):
+        key_alg = jwk_key.get("alg")
+        if not key_alg:
+            continue
         try:
-            if jwk_key.get("kty") == "RSA":
-                from jwt.algorithms import RSAAlgorithm
-                public_key = RSAAlgorithm.from_jwk(jwk_key)
-                return jwt.decode(
-                    token,
-                    key=public_key,
-                    algorithms=["RS256"],
-                    options={"verify_exp": True, "verify_aud": False, "verify_iss": False},
-                    audience="authenticated",
-                )
+            from jwt import PyJWK
+            public_key = PyJWK.from_dict(jwk_key, algorithm=key_alg).key
+            return jwt.decode(
+                token,
+                key=public_key,
+                algorithms=[key_alg],
+                options={"verify_exp": True, "verify_aud": False, "verify_iss": False},
+                audience="authenticated",
+            )
         except Exception as e:
             last_err = e
             continue
 
-    try:
-        supabase_jwt_secret = settings.SUPABASE_JWT_SECRET
-        if supabase_jwt_secret:
+    supabase_jwt_secret = settings.SUPABASE_JWT_SECRET
+    if supabase_jwt_secret:
+        try:
             return jwt.decode(
                 token,
                 key=supabase_jwt_secret,
-                algorithms=["HS256", "ES256", "RS256"],
+                algorithms=["HS256"],
                 options={"verify_exp": True, "verify_aud": False, "verify_iss": False},
             )
-    except Exception as e:
-        last_err = e
+        except Exception as e:
+            last_err = e
 
     if last_err:
         raise last_err
-    raise jwt.InvalidTokenError("No se pudo verificar contra ninguna clave")
+    raise jwt.InvalidTokenError("No se pudo verificar el token: JWKS vacio y sin SUPABASE_JWT_SECRET")
 
 
 def _fetch_profile(user_id: str) -> Optional[Dict[str, Any]]:
