@@ -44,17 +44,27 @@ def get_db_connection():
             continue
     raise last_err if last_err else RuntimeError("No se pudo conectar a la BD")
 
-_SUPABASE_JWKS_URI = f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/jwks"
-
-
 def _fetch_jwks() -> Dict[str, Any]:
+    import logging
+    logger = logging.getLogger(__name__)
+
+    jwks_uri = f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/jwks"
+
+    service_role_key = settings.SUPABASE_SERVICE_ROLE_KEY.strip()
+    if not service_role_key:
+        logger.error("[JWKS] SUPABASE_SERVICE_ROLE_KEY vacio, no se puede fetchar JWKS")
+        return {}
+
+    headers = {"apikey": service_role_key}
     try:
         with httpx.Client(timeout=10.0) as client:
-            res = client.get(_SUPABASE_JWKS_URI)
+            res = client.get(jwks_uri, headers=headers)
             if res.status_code == 200:
                 return res.json()
+            logger.warning("[JWKS] fetch HTTP %s: %s", res.status_code, res.text[:200])
             return {}
-    except Exception:
+    except Exception as e:
+        logger.warning("[JWKS] fetch fallo: %s: %s", type(e).__name__, str(e)[:200])
         return {}
 
 
@@ -172,6 +182,9 @@ def verify_token(
     token = credentials.credentials
 
     jwks = _fetch_jwks()
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("[AUTH] JWKS recibio %d claves, verificando token ...", len(jwks.get("keys", [])))
     decoded = _verify_with_jwks(token, jwks)
 
     user_id = decoded.get("sub")
