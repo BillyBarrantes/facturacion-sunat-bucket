@@ -10,8 +10,69 @@ from app.services.sunat_client import SunatSOAPClient
 from app.services.pdf_generator import PDFGenerator
 from app.services.doc_lookup import lookup_document
 from app.services.correlativo_service import next_correlativo, peek_correlativo
+from app.core.config import settings
 
-router = APIRouter(prefix="/comprobantes", tags=["Comprobantes Electrónicos"])
+router = APIRouter(prefix="/comprobantes", tags=["Comprobantes Electronicos"])
+
+
+def _get_emisor_or_raise(company_id: str, cur) -> dict:
+    """
+    Obtiene los datos del emisor desde la tabla companies.
+    En PRODUCCION lanza HTTPException si faltan sol_user/sol_pass o CDT.
+    En BETA tolera NULL con fallback MODDATOS (compatibilidad).
+    """
+    cur.execute(
+        "SELECT ruc, razon_social, nombre_comercial, direccion, ubigeo, "
+        "distrito, provincia, sol_user, sol_pass_encrypted "
+        "FROM public.companies WHERE id = %s",
+        (company_id,),
+    )
+    row = cur.fetchone()
+
+    is_prod = settings.SUNAT_ENV == "PRODUCCION"
+
+    if not row:
+        if is_prod:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Empresa no encontrada. No se puede emitir en PRODUCCION."
+            )
+        return {
+            "ruc": "20000000001",
+            "razon_social": "EMPRESA MYPE DE PRUEBA S.A.C.",
+            "nombre_comercial": "MYPE DIGITAL",
+            "direccion": "AV. PRINCIPAL 123",
+            "ubigeo": "150101",
+            "distrito": "LIMA",
+            "provincia": "LIMA",
+            "sol_user": "MODDATOS",
+            "sol_pass": "MODDATOS",
+        }
+
+    emisor = {
+        "ruc": row[0],
+        "razon_social": row[1],
+        "nombre_comercial": row[2],
+        "direccion": row[3],
+        "ubigeo": row[4],
+        "distrito": row[5],
+        "provincia": row[6],
+        "sol_user": row[7],
+        "sol_pass": row[8],
+    }
+
+    if is_prod:
+        if not emisor["sol_user"] or not emisor["sol_pass"]:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Empresa sin credenciales SOL configuradas (PRODUCCION)."
+            )
+
+    if not is_prod:
+        emisor["sol_user"] = emisor["sol_user"] or "MODDATOS"
+        emisor["sol_pass"] = emisor["sol_pass"] or "MODDATOS"
+
+    return emisor
 
 @router.get("")
 def listar_comprobantes(current_user: Dict[str, Any] = Depends(require_tenant)):
@@ -158,36 +219,7 @@ def emitir_comprobante(
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # 1. Obtener datos de la Empresa (Emisor)
-    cur.execute(
-        "SELECT ruc, razon_social, nombre_comercial, direccion, ubigeo, distrito, provincia, sol_user, sol_pass_encrypted FROM public.companies WHERE id = %s",
-        (company_id,)
-    )
-    empresa_row = cur.fetchone()
-    if not empresa_row:
-        emisor = {
-            "ruc": "20000000001",
-            "razon_social": "EMPRESA MYPE DE PRUEBA S.A.C.",
-            "nombre_comercial": "MYPE DIGITAL",
-            "direccion": "AV. PRINCIPAL 123",
-            "ubigeo": "150101",
-            "distrito": "LIMA",
-            "provincia": "LIMA",
-            "sol_user": "MODDATOS",
-            "sol_pass": "MODDATOS"
-        }
-    else:
-        emisor = {
-            "ruc": empresa_row[0],
-            "razon_social": empresa_row[1],
-            "nombre_comercial": empresa_row[2],
-            "direccion": empresa_row[3],
-            "ubigeo": empresa_row[4],
-            "distrito": empresa_row[5],
-            "provincia": empresa_row[6],
-            "sol_user": empresa_row[7] or "MODDATOS",
-            "sol_pass": empresa_row[8] or "MODDATOS"
-        }
+    emisor = _get_emisor_or_raise(company_id, cur)
 
     # 2. Validar Notas de Crédito/Débito: requieren comprobante de referencia
     if payload.tipo_comprobante in ("07", "08"):
@@ -405,10 +437,8 @@ def consultar_estado_cdr(
     try:
         cur.execute(
             """
-            SELECT c.serie, c.numero, c.tipo_comprobante, c.estado_sunat,
-                   comp.ruc, comp.sol_user, comp.sol_pass_encrypted
+            SELECT c.serie, c.numero, c.tipo_comprobante, c.estado_sunat
             FROM public.comprobantes c
-            JOIN public.companies comp ON comp.id = c.company_id
             WHERE c.id = %s AND c.company_id = %s
             """,
             (comprobante_id, current_user["company_id"])
@@ -418,7 +448,7 @@ def consultar_estado_cdr(
             raise HTTPException(status_code=404, detail="Comprobante no encontrado")
 
         serie, numero, tipo_comprobante, estado_actual = row[0], row[1], row[2], row[3]
-        emisor_ruc, sol_user, sol_pass = row[4], row[5] or "MODDATOS", row[6] or "MODDATOS"
+        emisor = _get_emisor_or_raise(current_user["company_id"], cur)
 
         if estado_actual in ("ACEPTADO", "RECHAZADO", "OBSERVADO", "ANULADO"):
             return {
@@ -427,12 +457,12 @@ def consultar_estado_cdr(
                 "mensaje_sunat": "El comprobante ya tiene un estado final procesado.",
             }
 
-        filename_base = f"{emisor_ruc}-{tipo_comprobante}-{serie}-{numero:08d}"
+        filename_base = f"{emisor['ruc']}-{tipo_comprobante}-{serie}-{numero:08d}"
         soap_client = SunatSOAPClient()
         resultado = soap_client.get_status(
-            ruc=emisor_ruc,
-            sol_user=sol_user,
-            sol_pass=sol_pass,
+            ruc=emisor["ruc"],
+            sol_user=emisor["sol_user"],
+            sol_pass=emisor["sol_pass"],
             filename_base=filename_base,
         )
 
@@ -482,11 +512,8 @@ def enviar_comunicacion_baja(
         cur.execute(
             f"""
             SELECT c.id, c.serie, c.numero, c.tipo_comprobante, c.estado_sunat, c.cliente_id,
-                   cl.tipo_doc, cl.num_doc, cl.razon_social,
-                   comp.ruc, comp.razon_social AS emisor_rs, comp.nombre_comercial,
-                   comp.direccion, comp.ubigeo, comp.sol_user, comp.sol_pass_encrypted
+                   cl.tipo_doc, cl.num_doc, cl.razon_social
             FROM public.comprobantes c
-            JOIN public.companies comp ON comp.id = c.company_id
             LEFT JOIN public.clientes cl ON cl.id = c.cliente_id
             WHERE c.company_id = %s AND c.id IN ({placeholders})
             """,
@@ -496,15 +523,7 @@ def enviar_comunicacion_baja(
         if not rows:
             raise HTTPException(status_code=404, detail="No se encontraron comprobantes para dar de baja.")
 
-        emisor = {
-            "ruc": rows[0][9],
-            "razon_social": rows[0][10],
-            "nombre_comercial": rows[0][11],
-            "direccion": rows[0][12],
-            "ubigeo": rows[0][13],
-            "sol_user": rows[0][14] or "MODDATOS",
-            "sol_pass": rows[0][15] or "MODDATOS",
-        }
+        emisor = _get_emisor_or_raise(current_user["company_id"], cur)
 
         lineas = []
         for r in rows:
@@ -516,7 +535,7 @@ def enviar_comunicacion_baja(
             })
 
         hoy = datetime.now().strftime("%Y%m%d")
-        correlativo_baja = datetime.now().strftime("%H%M%S")
+        correlativo_baja = datetime.now().strftime("%H%M%S%f")[:-3]
         id_baja = f"RA-{hoy}-{correlativo_baja}"
         baja = {"id": id_baja, "issue_date": datetime.now().strftime("%Y-%m-%d")}
 
@@ -583,11 +602,8 @@ def enviar_resumen_diario(
         cur.execute(
             f"""
             SELECT c.id, c.serie, c.numero, c.tipo_comprobante, c.total_gravado, c.total_igv, c.importe_total,
-                   cl.tipo_doc, cl.num_doc, cl.razon_social,
-                   comp.ruc, comp.razon_social AS emisor_rs, comp.nombre_comercial,
-                   comp.direccion, comp.ubigeo, comp.sol_user, comp.sol_pass_encrypted
+                   cl.tipo_doc, cl.num_doc, cl.razon_social
             FROM public.comprobantes c
-            JOIN public.companies comp ON comp.id = c.company_id
             LEFT JOIN public.clientes cl ON cl.id = c.cliente_id
             WHERE c.company_id = %s AND c.id IN ({placeholders})
             """,
@@ -597,15 +613,7 @@ def enviar_resumen_diario(
         if not rows:
             raise HTTPException(status_code=404, detail="No se encontraron comprobantes para el resumen.")
 
-        emisor = {
-            "ruc": rows[0][10],
-            "razon_social": rows[0][11],
-            "nombre_comercial": rows[0][12],
-            "direccion": rows[0][13],
-            "ubigeo": rows[0][14],
-            "sol_user": rows[0][15] or "MODDATOS",
-            "sol_pass": rows[0][16] or "MODDATOS",
-        }
+        emisor = _get_emisor_or_raise(current_user["company_id"], cur)
 
         lineas = []
         for r in rows:
@@ -627,7 +635,7 @@ def enviar_resumen_diario(
             })
 
         hoy = datetime.now().strftime("%Y%m%d")
-        correlativo_rc = datetime.now().strftime("%H%M%S")
+        correlativo_rc = datetime.now().strftime("%H%M%S%f")[:-3]
         id_rc = f"RC-{hoy}-{correlativo_rc}"
         resumen = {
             "id": id_rc,

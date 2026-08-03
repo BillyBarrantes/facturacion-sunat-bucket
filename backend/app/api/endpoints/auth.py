@@ -12,6 +12,11 @@ class RegisterCompanySchema(BaseModel):
     razon_social: str = Field(..., example="MI EMPRESA S.A.C.")
     email: str = Field(..., example="admin@empresa.pe")
     password: str = Field(..., min_length=6, example="Password123$")
+    direccion: str = Field("LIMA", min_length=3, example="AV. LOS OLIVOS 456")
+    ubigeo: str = Field("150101", min_length=6, max_length=6, example="150101")
+    distrito: str = Field("LIMA", example="LIMA")
+    provincia: str = Field("LIMA", example="LIMA")
+    departamento: str = Field("LIMA", example="LIMA")
 
 class LoginSchema(BaseModel):
     email: str
@@ -76,14 +81,16 @@ def register_company(payload: RegisterCompanySchema):
         cur.execute(
             """
             INSERT INTO public.companies 
-            (ruc, razon_social, nombre_comercial, direccion, ubigeo, distrito, provincia, sol_user, sol_pass_encrypted)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (ruc, razon_social, nombre_comercial, direccion, ubigeo,
+             departamento, provincia, distrito, sol_user, sol_pass_encrypted)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
             """,
             (
                 payload.ruc, payload.razon_social, payload.razon_social,
-                "AV. PRINCIPAL 123", "150101", "LIMA", "LIMA",
-                "MODDATOS", "MODDATOS"
+                payload.direccion, payload.ubigeo,
+                payload.departamento, payload.provincia, payload.distrito,
+                None, None
             )
         )
         company_id = cur.fetchone()[0]
@@ -145,22 +152,46 @@ def login_user(payload: LoginSchema):
     """
     service_role_key = settings.SUPABASE_SERVICE_ROLE_KEY.strip()
     login_url = f"{settings.SUPABASE_URL.strip()}/auth/v1/token?grant_type=password"
+
+    if not service_role_key or not settings.SUPABASE_URL.strip():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Servicio de autenticacion no configurado en el servidor"
+        )
+
     headers = {
         "apikey": service_role_key,
         "Content-Type": "application/json"
     }
-    
-    with httpx.Client(timeout=15.0) as client:
-        res = client.post(login_url, headers=headers, json={"email": payload.email, "password": payload.password})
+
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            res = client.post(login_url, headers=headers, json={"email": payload.email, "password": payload.password})
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Servicio de autenticacion no disponible: {type(e).__name__}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error inesperado contactando servicio de auth: {type(e).__name__}"
+        )
 
     if res.status_code != 200:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenciales incorrectas (email o contraseña)"
+            detail="Credenciales incorrectas (email o contrasena)"
         )
 
-    auth_data = res.json()
-    user_id = auth_data["user"]["id"]
+    try:
+        auth_data = res.json()
+        user_id = auth_data["user"]["id"]
+    except (ValueError, KeyError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Respuesta inesperada del servicio de auth: {type(e).__name__}"
+        )
 
     # Obtener perfil y company_id
     conn = get_db_connection()
