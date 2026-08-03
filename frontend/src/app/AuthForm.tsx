@@ -169,7 +169,7 @@ function AuthCard() {
                   placeholder="20601234567"
                   value={ruc}
                   onChange={(e) => setRuc(e.target.value)}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3.5 py-2.5 text-[14px] text-[var(--fg)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors"
+                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3.5 py-2.5 text-[14px] text-[var(--fg)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors duration-[var(--dur-fast)]"
                 />
                 <Building2 className="absolute right-3 top-2.5 h-[18px] w-[18px] text-[var(--muted-2)]" strokeWidth={1.5} />
               </div>
@@ -185,7 +185,7 @@ function AuthCard() {
                 placeholder="Mi Empresa S.A.C."
                 value={razonSocial}
                 onChange={(e) => setRazonSocial(e.target.value)}
-                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3.5 py-2.5 text-[14px] text-[var(--fg)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors"
+                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3.5 py-2.5 text-[14px] text-[var(--fg)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors duration-[var(--dur-fast)]"
               />
             </div>
           </>
@@ -201,7 +201,7 @@ function AuthCard() {
             placeholder="admin@empresa.pe"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3.5 py-2.5 text-[14px] text-[var(--fg)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors"
+            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3.5 py-2.5 text-[14px] text-[var(--fg)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors duration-[var(--dur-fast)]"
           />
         </div>
 
@@ -215,14 +215,14 @@ function AuthCard() {
             placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3.5 py-2.5 text-[14px] text-[var(--fg)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors"
+            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3.5 py-2.5 text-[14px] text-[var(--fg)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors duration-[var(--dur-fast)]"
           />
         </div>
 
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-[var(--fg)] hover:bg-[var(--fg-hover)] text-white text-[14px] font-medium py-3 rounded-[var(--r-sm)] flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-[var(--fg)] hover:bg-[var(--fg-hover)] text-white text-[14px] font-medium py-3 rounded-[var(--r-sm)] flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed press-feedback"
         >
           <span>{isLoading ? 'Procesando...' : (isRegister ? 'Crear empresa y cuenta' : 'Ingresar al sistema')}</span>
           {!isLoading && <ArrowRight className="h-4 w-4" strokeWidth={1.75} />}

@@ -3,7 +3,7 @@ from pydantic import BaseModel, EmailStr, Field
 import httpx
 from typing import Dict, Any
 from app.core.config import settings
-from app.core.security import get_db_connection
+from app.core.security import get_db_connection, require_tenant
 
 router = APIRouter(prefix="/auth", tags=["Autenticación & Tenant Registration"])
 
@@ -288,6 +288,94 @@ def refresh_token(payload: Dict[str, Any]):
             "company_ruc": profile[3],
             "company_razon_social": profile[4],
         }
+    finally:
+        cur.close()
+        conn.close()
+
+
+# ─── Configuracion de empresa (GET + PUT) ────────────────────────────────
+
+class EmpresaUpdateSchema(BaseModel):
+    direccion: Optional[str] = Field(None, example="AV. LOS OLIVOS 456")
+    ubigeo: Optional[str] = Field(None, min_length=6, max_length=6, example="150101")
+    departamento: Optional[str] = Field(None, example="LIMA")
+    provincia: Optional[str] = Field(None, example="LIMA")
+    distrito: Optional[str] = Field(None, example="LIMA")
+    sol_user: Optional[str] = Field(None, example="SOLUSER")
+    sol_pass: Optional[str] = Field(None, example="SOLPASS")
+    cdt_pfx_url: Optional[str] = Field(None, example="https://...")
+    cdt_password: Optional[str] = Field(None, example="secret")
+
+
+@router.get("/empresa")
+def get_empresa(current_user: Dict[str, Any] = Depends(require_tenant)):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            SELECT ruc, razon_social, nombre_comercial, direccion, ubigeo,
+                   departamento, provincia, distrito, sol_user, cdt_pfx_url
+            FROM public.companies WHERE id = %s
+            """,
+            (current_user["company_id"],),
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Empresa no encontrada")
+        return {
+            "success": True,
+            "company_id": current_user["company_id"],
+            "ruc": row[0],
+            "razon_social": row[1],
+            "nombre_comercial": row[2] or "",
+            "direccion": row[3] or "",
+            "ubigeo": row[4] or "",
+            "departamento": row[5] or "",
+            "provincia": row[6] or "",
+            "distrito": row[7] or "",
+            "sol_user": row[8],
+            "cdt_pfx_url": row[9],
+            "has_credenciales_sol": bool(row[8]),
+            "has_cdt": bool(row[9]),
+        }
+    finally:
+        cur.close()
+        conn.close()
+
+
+@router.put("/empresa")
+def update_empresa(
+    payload: EmpresaUpdateSchema,
+    current_user: Dict[str, Any] = Depends(require_tenant),
+):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        fields = []
+        values = []
+        for field_name in (
+            "direccion", "ubigeo", "departamento", "provincia", "distrito",
+            "sol_user", "cdt_pfx_url",
+        ):
+            val = getattr(payload, field_name, None)
+            if val is not None:
+                fields.append(f"{field_name} = %s")
+                values.append(val)
+        if payload.sol_pass:
+            fields.append("sol_pass_encrypted = %s")
+            values.append(payload.sol_pass)
+        if payload.cdt_password:
+            fields.append("cdt_password_encrypted = %s")
+            values.append(payload.cdt_password)
+        if not fields:
+            raise HTTPException(status_code=400, detail="No hay campos para actualizar")
+        fields.append("updated_at = NOW()")
+        values.append(current_user["company_id"])
+        sql = f"UPDATE public.companies SET {', '.join(fields)} WHERE id = %s"
+        cur.execute(sql, values)
+        conn.commit()
+        return {"success": True, "message": "Datos de empresa actualizados correctamente"}
     finally:
         cur.close()
         conn.close()

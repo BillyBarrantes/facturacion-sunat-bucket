@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { RefreshCw, FileSpreadsheet, TrendingUp, Receipt, Wallet } from 'lucide-react'
+import { RefreshCw, FileSpreadsheet, TrendingUp, Receipt, Wallet, AlertCircle } from 'lucide-react'
 import { Source_Serif_4 } from 'next/font/google'
 import { api, ApiClientError } from '@/lib/api-client'
 import type { MetricsResponse } from '@/lib/api-types'
@@ -15,6 +15,7 @@ const sourceSerif = Source_Serif_4({
 export default function DashboardPage() {
   const [loadingAi, setLoadingAi] = useState(false)
   const [loadingMetrics, setLoadingMetrics] = useState(true)
+  const [metricsError, setMetricsError] = useState('')
   const [aiSummary, setAiSummary] = useState('')
 
   const [metrics, setMetrics] = useState<MetricsResponse>({
@@ -35,12 +36,14 @@ export default function DashboardPage() {
 
   const fetchMetrics = async () => {
     setLoadingMetrics(true)
+    setMetricsError('')
     try {
       const data = await api.metrics()
       setMetrics(data)
     } catch (e) {
-      if (e instanceof ApiClientError) console.error('Error fetching metrics:', e.detail)
-      else console.error(e)
+      const msg = e instanceof ApiClientError ? e.detail : 'No se pudieron cargar las métricas'
+      setMetricsError(msg)
+      console.error('Error fetching metrics:', e)
     } finally {
       setLoadingMetrics(false)
     }
@@ -97,7 +100,7 @@ export default function DashboardPage() {
           <button
             onClick={fetchMetrics}
             disabled={loadingMetrics}
-            className="h-9 w-9 grid place-items-center rounded-[var(--r-sm)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--fg)] hover:bg-[var(--surface)] transition-colors disabled:opacity-50"
+            className="h-9 w-9 grid place-items-center rounded-[var(--r-sm)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--fg)] hover:bg-[var(--surface)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="Actualizar métricas"
             aria-label="Actualizar métricas"
           >
@@ -107,7 +110,7 @@ export default function DashboardPage() {
           <button
             onClick={handleExplainAi}
             disabled={loadingAi}
-            className="h-9 px-3.5 rounded-[var(--r-sm)] border border-[var(--border)] text-[13px] font-medium text-[var(--fg-2)] hover:bg-[var(--surface)] transition-colors inline-flex items-center gap-2 disabled:opacity-50"
+            className="h-9 px-3.5 rounded-[var(--r-sm)] border border-[var(--border)] text-[13px] font-medium text-[var(--fg-2)] hover:bg-[var(--surface)] transition-colors inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <TrendingUp className="h-4 w-4 text-[var(--accent)]" strokeWidth={1.5} />
             <span>{loadingAi ? 'Analizando...' : 'Resumen con IA'}</span>
@@ -115,13 +118,24 @@ export default function DashboardPage() {
 
           <button
             onClick={handleDownloadSire}
-            className="h-9 px-3.5 rounded-[var(--r-sm)] bg-[var(--fg)] hover:bg-[var(--fg-hover)] text-white text-[13px] font-medium inline-flex items-center gap-2 transition-colors"
+            className="h-9 px-3.5 rounded-[var(--r-sm)] bg-[var(--fg)] hover:bg-[var(--fg-hover)] text-white text-[13px] font-medium inline-flex items-center gap-2 transition-colors press-feedback"
           >
             <FileSpreadsheet className="h-4 w-4" strokeWidth={1.5} />
             <span>Exportar SIRE</span>
           </button>
         </div>
       </header>
+
+      {/* Error state */}
+      {metricsError && !loadingMetrics && (
+        <div className="bg-[var(--danger-soft)] border border-[var(--danger)]/20 text-[var(--danger)] p-4 rounded-[var(--r-sm)] text-[13px] flex items-center gap-3 animate-scale-in" role="alert">
+          <AlertCircle className="h-[18px] w-[18px] shrink-0" strokeWidth={1.5} />
+          <span className="flex-1">{metricsError}</span>
+          <button onClick={fetchMetrics} className="h-8 px-3 rounded-[var(--r-sm)] border border-[var(--danger)]/20 text-[12px] font-medium hover:bg-[var(--bg)] transition-colors">
+            Reintentar
+          </button>
+        </div>
+      )}
 
       {/* Resumen IA */}
       {aiSummary && (
@@ -141,7 +155,7 @@ export default function DashboardPage() {
         <h2 className="text-[11px] font-semibold tracking-[var(--tracking-caps)] uppercase text-[var(--muted)] mb-4">
           Resumen del período
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div className="bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-lg)] p-5 md:p-6 flex flex-col gap-1.5 shadow-[var(--shadow-card)] transition-shadow hover:shadow-[var(--shadow-hover)]">
             <div className="flex items-center justify-between pb-2.5 border-b border-[var(--border-soft)]">
               <span className="text-[11px] font-semibold tracking-[var(--tracking-caps)] uppercase text-[var(--muted)]">Ventas totales</span>
@@ -172,7 +186,7 @@ export default function DashboardPage() {
             <div className="text-[12px] text-[var(--muted)]">{loadingMetrics ? '—' : `IGV de compras: S/ ${metrics.igv_compras.toFixed(2)}`}</div>
           </div>
 
-          <div className="bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-lg)] p-5 md:p-6 flex flex-col gap-1.5 shadow-[var(--shadow-card)] transition-shadow hover:shadow-[var(--shadow-hover)]">
+          <div className="col-span-2 md:col-span-1 bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-lg)] p-5 md:p-6 flex flex-col gap-1.5 shadow-[var(--shadow-card)] transition-shadow hover:shadow-[var(--shadow-hover)]">
             <div className="flex items-center justify-between pb-2.5 border-b border-[var(--border-soft)]">
               <span className="text-[11px] font-semibold tracking-[var(--tracking-caps)] uppercase text-[var(--muted)]">IGV a pagar</span>
               <span className="h-4 w-4 grid place-items-center text-[var(--muted-2)] text-[12px] font-mono">S/</span>

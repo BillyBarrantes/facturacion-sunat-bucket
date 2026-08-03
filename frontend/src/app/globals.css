@@ -153,6 +153,16 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes flash-success {
+  0%   { background-color: var(--accent-soft); }
+  100% { background-color: transparent; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
 @keyframes shimmer {
   0%   { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -160,6 +170,22 @@ body {
 
 .animate-fade-in-up {
   animation: fade-in-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-flash-success {
+  animation: flash-success 1.2s ease-out both;
+}
+
+/* Subtle press feedback on interactive elements */
+.press-feedback {
+  transition: transform 0.1s ease;
+}
+.press-feedback:active {
+  transform: scale(0.97);
 }
 
 .animate-delay-1 { animation-delay: 0.05s; }
@@ -171,4 +197,14 @@ body {
   background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.8s ease-in-out infinite;
+}
+
+/* Hide number input spinners cross-browser */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
 }

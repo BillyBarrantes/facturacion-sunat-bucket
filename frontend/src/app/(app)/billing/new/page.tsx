@@ -445,44 +445,48 @@ export default function NewInvoicePage() {
         </div>
 
         {/* Form agregar ítem */}
-            <div className="grid grid-cols-2 sm:grid-cols-12 gap-3 bg-[var(--surface)] p-3 md:p-3.5 rounded-[var(--r-sm)] border border-[var(--border)] items-end">
-          <div className="col-span-1 sm:col-span-2">
-            <label className="block text-[11px] font-semibold text-[var(--muted)] mb-1.5 tracking-[var(--tracking-small)]">Cant.</label>
-            <input
-              type="number"
-              min={1}
-              step="any"
-              value={newCantidad}
-              onChange={(e) => setNewCantidad(e.target.value)}
-              placeholder="1"
-              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2 text-[14px] text-[var(--fg)] font-[family-name:var(--font-geist-mono)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors text-center"
-            />
-          </div>
-
-          <div className="col-span-2 sm:col-span-6">
-            <label className="block text-[11px] font-semibold text-[var(--muted)] mb-1.5 tracking-[var(--tracking-small)]">Descripción</label>
+            <div className="bg-[var(--surface)] p-3 md:p-3.5 rounded-[var(--r-sm)] border border-[var(--border)] space-y-3 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-3 sm:items-end">
+          <div className="sm:col-span-6">
+            <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">Descripción</label>
             <input
               type="text"
               value={newDesc}
               onChange={(e) => setNewDesc(e.target.value)}
               placeholder="Descripción del bien o servicio"
-              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2 text-[14px] text-[var(--fg)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors"
+              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--fg)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors duration-[var(--dur-fast)]"
             />
           </div>
 
-          <div className="col-span-1 sm:col-span-2">
-            <label className="block text-[11px] font-semibold text-[var(--muted)] mb-1.5 tracking-[var(--tracking-small)]">Monto S/</label>
-            <input
-              type="number"
-              step="any"
-              value={newPrecio}
-              onChange={(e) => setNewPrecio(e.target.value)}
-              placeholder="0.00"
-              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2 text-[14px] text-[var(--fg)] font-[family-name:var(--font-geist-mono)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors"
-            />
+          <div className="grid grid-cols-2 gap-3 sm:contents">
+            <div className="sm:col-span-2">
+              <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">Cant.</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={1}
+                step="any"
+                value={newCantidad}
+                onChange={(e) => setNewCantidad(e.target.value)}
+                placeholder="1"
+                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--fg)] font-[family-name:var(--font-geist-mono)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors duration-[var(--dur-fast)] text-center"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">Monto S/</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                value={newPrecio}
+                onChange={(e) => setNewPrecio(e.target.value)}
+                placeholder="0.00"
+                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--fg)] font-[family-name:var(--font-geist-mono)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors duration-[var(--dur-fast)]"
+              />
+            </div>
           </div>
 
-          <div className="col-span-2 sm:col-span-2">
+          <div className="sm:col-span-2">
             <button
               type="button"
               onClick={handleAddItem}
@@ -493,62 +497,84 @@ export default function NewInvoicePage() {
           </div>
         </div>
 
-        {/* Tabla items */}
+        {/* Items */}
         {items.length > 0 ? (
-          <div className="overflow-x-auto border border-[var(--border)] rounded-[var(--r-sm)] shadow-[var(--shadow-card)] -mx-5 md:mx-0 px-5 md:px-0">
-            <table className="w-full text-left min-w-[580px]">
-              <thead className="bg-[var(--surface)] border-b border-[var(--border)]">
-                <tr>
-                  <th scope="col" className="px-4 py-2.5 text-[11px] font-semibold tracking-[var(--tracking-caps)] uppercase text-[var(--muted)]">Descripción</th>
-                  <th scope="col" className="px-4 py-2.5 text-[11px] font-semibold tracking-[var(--tracking-caps)] uppercase text-[var(--muted)] text-center">Cant.</th>
-                  <th scope="col" className="px-4 py-2.5 text-[11px] font-semibold tracking-[var(--tracking-caps)] uppercase text-[var(--muted)] text-right">Valor U.</th>
-                  <th scope="col" className="px-4 py-2.5 text-[11px] font-semibold tracking-[var(--tracking-caps)] uppercase text-[var(--muted)] text-right">Precio U.</th>
-                  <th scope="col" className="px-4 py-2.5 text-[11px] font-semibold tracking-[var(--tracking-caps)] uppercase text-[var(--muted)] text-right">Total</th>
-                  <th scope="col" className="px-4 py-2.5"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border-soft)]">
-                {items.map((item, idx) => {
-                  const totalItem = item.precio_unitario * item.cantidad
-                  return (
-                    <tr key={idx} className="hover:bg-[var(--surface)] transition-colors">
-                      <td className="px-4 py-3 text-[14px] font-medium text-[var(--fg)]">{item.descripcion}</td>
-                      <td className="px-4 py-3 text-center font-[family-name:var(--font-geist-mono)] text-[13px] text-[var(--fg-2)]">{item.cantidad}</td>
-                      <td className="px-4 py-3 text-right font-[family-name:var(--font-geist-mono)] text-[13px] text-[var(--muted)]">S/ {item.valor_unitario.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right font-[family-name:var(--font-geist-mono)] text-[13px] text-[var(--fg-2)]">S/ {item.precio_unitario.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right font-[family-name:var(--font-geist-mono)] text-[14px] font-medium text-[var(--fg)]">S/ {totalItem.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="inline-flex items-center gap-0.5">
-                          <button
-                            type="button"
-                            onClick={() => handleEditItem(idx)}
-                            className="h-7 w-7 grid place-items-center rounded-[var(--r-sm)] text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--surface)] transition-colors"
-                            title="Editar ítem"
-                            aria-label="Editar ítem"
-                          >
-                            <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveItem(idx)}
-                            className="h-7 w-7 grid place-items-center rounded-[var(--r-sm)] text-[var(--muted)] hover:text-[var(--danger)] hover:bg-[var(--surface)] transition-colors"
-                            title="Eliminar ítem"
-                            aria-label="Eliminar ítem"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <>
+            {/* Vista móvil: cards */}
+            <div className="sm:hidden space-y-2">
+              {items.map((item, idx) => {
+                const totalItem = item.precio_unitario * item.cantidad
+                return (
+                  <div key={idx} className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-sm)] p-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[14px] font-medium text-[var(--fg)] truncate">{item.descripcion}</p>
+                      <p className="text-[12px] text-[var(--muted)] mt-0.5">
+                        {item.cantidad} × S/ {item.precio_unitario.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0 flex items-center gap-2">
+                      <span className="text-[14px] font-medium text-[var(--fg)] font-[family-name:var(--font-geist-mono)]">S/ {totalItem.toFixed(2)}</span>
+                      <div className="inline-flex items-center gap-0.5">
+                        <button type="button" onClick={() => handleEditItem(idx)} className="h-7 w-7 grid place-items-center rounded-[var(--r-sm)] text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--bg)] transition-colors" aria-label="Editar ítem">
+                          <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} />
+                        </button>
+                        <button type="button" onClick={() => handleRemoveItem(idx)} className="h-7 w-7 grid place-items-center rounded-[var(--r-sm)] text-[var(--muted)] hover:text-[var(--danger)] hover:bg-[var(--bg)] transition-colors" aria-label="Eliminar ítem">
+                          <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Vista desktop: tabla */}
+            <div className="hidden sm:block overflow-x-auto border border-[var(--border)] rounded-[var(--r-sm)] shadow-[var(--shadow-card)]">
+              <table className="w-full text-left min-w-[580px]">
+                <thead className="bg-[var(--surface)] border-b border-[var(--border)]">
+                  <tr>
+                    <th scope="col" className="px-4 py-2.5 text-[11px] font-semibold tracking-[var(--tracking-caps)] uppercase text-[var(--muted)]">Descripción</th>
+                    <th scope="col" className="px-4 py-2.5 text-[11px] font-semibold tracking-[var(--tracking-caps)] uppercase text-[var(--muted)] text-center">Cant.</th>
+                    <th scope="col" className="-px-4 py-2.5 text-[11px] font-semibold tracking-[var(--tracking-caps)] uppercase text-[var(--muted)] text-right">Valor U.</th>
+                    <th scope="col" className="px-4 py-2.5 text-[11px] font-semibold tracking-[var(--tracking-caps)] uppercase text-[var(--muted)] text-right">Precio U.</th>
+                    <th scope="col" className="px-4 py-2.5 text-[11px] font-semibold tracking-[var(--tracking-caps)] uppercase text-[var(--muted)] text-right">Total</th>
+                    <th scope="col" className="px-4 py-2.5"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border-soft)]">
+                  {items.map((item, idx) => {
+                    const totalItem = item.precio_unitario * item.cantidad
+                    return (
+                      <tr key={idx} className="hover:bg-[var(--surface)] transition-colors">
+                        <td className="px-4 py-3 text-[14px] font-medium text-[var(--fg)]">{item.descripcion}</td>
+                        <td className="px-4 py-3 text-center font-[family-name:var(--font-geist-mono)] text-[13px] text-[var(--fg-2)]">{item.cantidad}</td>
+                        <td className="px-4 py-3 text-right font-[family-name:var(--font-geist-mono)] text-[13px] text-[var(--muted)]">S/ {item.valor_unitario.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right font-[family-name:var(--font-geist-mono)] text-[13px] text-[var(--fg-2)]">S/ {item.precio_unitario.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right font-[family-name:var(--font-geist-mono)] text-[14px] font-medium text-[var(--fg)]">S/ {totalItem.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="inline-flex items-center gap-0.5">
+                            <button type="button" onClick={() => handleEditItem(idx)} className="h-7 w-7 grid place-items-center rounded-[var(--r-sm)] text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--surface)] transition-colors" title="Editar ítem" aria-label="Editar ítem">
+                              <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} />
+                            </button>
+                            <button type="button" onClick={() => handleRemoveItem(idx)} className="h-7 w-7 grid place-items-center rounded-[var(--r-sm)] text-[var(--muted)] hover:text-[var(--danger)] hover:bg-[var(--surface)] transition-colors" title="Eliminar ítem" aria-label="Eliminar ítem">
+                              <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         ) : (
           <div className="py-10 text-center border border-dashed border-[var(--border-strong)] rounded-[var(--r-sm)]">
+            <div className="h-10 w-10 mx-auto rounded-full bg-[var(--surface)] grid place-items-center mb-3">
+              <ClipboardList className="h-5 w-5 text-[var(--muted-2)]" strokeWidth={1.5} />
+            </div>
             <p className="text-[14px] font-medium text-[var(--fg-2)] mb-1">Sin ítems agregados</p>
-            <p className="text-[13px] text-[var(--muted)]">Completa el formulario superior para añadir productos o servicios.</p>
+            <p className="text-[13px] text-[var(--muted)] max-w-[40ch] mx-auto">Completa el formulario de arriba para añadir productos o servicios a tu comprobante.</p>
           </div>
         )}
 
@@ -562,34 +588,36 @@ export default function NewInvoicePage() {
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[12px] font-medium text-[var(--fg-2)] mb-1.5">Descuento global (S/)</label>
+                <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">Descuento global (S/)</label>
                 <div className="relative">
                   <input
                     type="number"
+                    inputMode="decimal"
                     min={0}
                     step="any"
                     value={descuentoGlobal}
                     onChange={(e) => setDescuentoGlobal(e.target.value)}
                     placeholder="0.00"
-                    className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2 text-[14px] text-[var(--fg)] font-[family-name:var(--font-geist-mono)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors"
+                    className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 pr-9 text-[14px] text-[var(--fg)] font-[family-name:var(--font-geist-mono)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors duration-[var(--dur-fast)]"
                   />
-                  <span className="absolute right-3 top-2 text-[12px] text-[var(--muted-2)] font-[family-name:var(--font-geist-mono)]">S/</span>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-[var(--muted-2)] font-[family-name:var(--font-geist-mono)] pointer-events-none">S/</span>
                 </div>
               </div>
 
               <div>
-                <label className="block text-[12px] font-medium text-[var(--fg-2)] mb-1.5">Anticipo recibido (S/)</label>
+                <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">Anticipo recibido (S/)</label>
                 <div className="relative">
                   <input
                     type="number"
+                    inputMode="decimal"
                     min={0}
                     step="any"
                     value={anticipoTotal}
                     onChange={(e) => setAnticipoTotal(e.target.value)}
                     placeholder="0.00"
-                    className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2 text-[14px] text-[var(--fg)] font-[family-name:var(--font-geist-mono)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors"
+                    className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 pr-9 text-[14px] text-[var(--fg)] font-[family-name:var(--font-geist-mono)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors duration-[var(--dur-fast)]"
                   />
-                  <span className="absolute right-3 top-2 text-[12px] text-[var(--muted-2)] font-[family-name:var(--font-geist-mono)]">S/</span>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-[var(--muted-2)] font-[family-name:var(--font-geist-mono)] pointer-events-none">S/</span>
                 </div>
               </div>
             </div>
@@ -640,7 +668,7 @@ export default function NewInvoicePage() {
           type="button"
           onClick={handleAbrirPreview}
           disabled={items.length === 0}
-          className="w-full bg-[var(--fg)] hover:bg-[var(--fg-hover)] text-white text-[15px] font-medium py-3.5 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-[var(--fg)] hover:bg-[var(--fg-hover)] text-white text-[15px] font-medium py-3.5 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed press-feedback"
         >
           <Send className="h-4 w-4" strokeWidth={1.5} />
           <span>Vista previa y emisión · {serie}-{String(numero).padStart(8, '0')}</span>

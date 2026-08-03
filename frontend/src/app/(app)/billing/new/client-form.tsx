@@ -44,7 +44,7 @@ export default function ClientForm({
         </div>
 
         {docBadge && (
-          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--r-pill)] text-[11px] font-medium ${
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--r-pill)] text-[11px] font-medium animate-scale-in ${
             docBadge.startsWith('✗')
               ? 'bg-[var(--danger-soft)] text-[var(--danger)]'
               : 'bg-[var(--accent-soft)] text-[var(--accent)]'
@@ -63,7 +63,7 @@ export default function ClientForm({
           <select
             value={clienteTipoDoc}
             onChange={(e) => onSelectTipoDoc(e.target.value)}
-            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--fg)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors"
+            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] pl-3 pr-9 py-2.5 text-[14px] text-[var(--fg)] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%235f5f5f%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-[length:16px] bg-[position:right_8px_center] bg-no-repeat focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors duration-[var(--dur-fast)]"
           >
             {tipoComprobante === '01' ? (
               <option value="6">RUC (obligatorio)</option>
@@ -85,7 +85,7 @@ export default function ClientForm({
               value={clienteNumDoc}
               onChange={(e) => onNumDocChange(e.target.value)}
               disabled={clienteTipoDoc === '0'}
-              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] pl-3 pr-10 py-2.5 text-[14px] text-[var(--fg)] font-[family-name:var(--font-geist-mono)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors disabled:opacity-50 disabled:bg-[var(--surface)]"
+              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] pl-3 pr-10 py-2.5 text-[14px] text-[var(--fg)] font-[family-name:var(--font-geist-mono)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors duration-[var(--dur-fast)] disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-[var(--surface)]"
               placeholder={clienteTipoDoc === '6' ? '20601234567' : clienteTipoDoc === '1' ? '45678912' : '00000000'}
             />
             {clienteTipoDoc !== '0' && (
@@ -93,7 +93,7 @@ export default function ClientForm({
                 type="button"
                 onClick={onConsultarDoc}
                 disabled={isSearchingDoc}
-                className="absolute right-2 text-[var(--muted)] hover:text-[var(--accent)] p-1 disabled:opacity-50"
+                className="absolute right-2 text-[var(--muted)] hover:text-[var(--accent)] p-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Consultar en SUNAT/RENIEC"
                 aria-label="Consultar documento"
               >
@@ -112,7 +112,7 @@ export default function ClientForm({
             value={clienteRazonSocial}
             onChange={(e) => onRazonSocialChange(e.target.value)}
             disabled={clienteTipoDoc === '0'}
-            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--fg)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors disabled:opacity-50 disabled:bg-[var(--surface)]"
+            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--fg)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors duration-[var(--dur-fast)] disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-[var(--surface)]"
             placeholder="Razón social del cliente"
           />
         </div>
@@ -124,7 +124,7 @@ export default function ClientForm({
             value={clienteDireccion}
             onChange={(e) => onDireccionChange(e.target.value)}
             disabled={clienteTipoDoc === '0'}
-            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--fg)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors disabled:opacity-50 disabled:bg-[var(--surface)]"
+            className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--fg)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors duration-[var(--dur-fast)] disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-[var(--surface)]"
             placeholder="Av. Principal 123"
           />
         </div>

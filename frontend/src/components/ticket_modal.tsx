@@ -63,12 +63,12 @@ export default function TicketModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-[rgba(13,13,13,0.45)] backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[rgba(13,13,13,0.45)] backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="ticket-modal-title"
     >
-      <div className="bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-lg)] w-full max-w-md shadow-[var(--shadow-modal)] relative max-h-[90vh] overflow-y-auto">
+      <div className="bg-[var(--bg)] border border-[var(--border)] rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] w-full max-w-md shadow-[var(--shadow-modal)] relative max-h-[85vh] sm:max-h-[90vh] overflow-y-auto animate-scale-in">
 
         {/* Header del modal */}
         <div className="flex items-center justify-between p-5 border-b border-[var(--border-soft)]">
@@ -191,7 +191,7 @@ export default function TicketModal({
               <button
                 onClick={onClose}
                 disabled={isEmitting}
-                className="w-full bg-[var(--bg)] border border-[var(--border)] hover:bg-[var(--surface)] text-[var(--fg-2)] text-[13px] font-medium py-2.5 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 transition-colors"
+                className="w-full bg-[var(--bg)] border border-[var(--border)] hover:bg-[var(--surface)] text-[var(--fg-2)] text-[13px] font-medium py-2.5 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 transition-colors press-feedback"
               >
                 <PencilLine className="h-4 w-4" strokeWidth={1.5} />
                 <span>Modificar</span>
@@ -200,7 +200,7 @@ export default function TicketModal({
               <button
                 onClick={onConfirmEmit}
                 disabled={isEmitting}
-                className="w-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium py-2.5 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                className="w-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-[13px] font-medium py-2.5 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed press-feedback"
               >
                 {isEmitting ? (
                   <>
@@ -219,7 +219,7 @@ export default function TicketModal({
             <div className="flex gap-3">
               <button
                 onClick={handlePrint}
-                className="flex-1 bg-[var(--bg)] border border-[var(--border)] hover:bg-[var(--surface)] text-[var(--fg-2)] text-[13px] font-medium py-2.5 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 transition-colors"
+                className="flex-1 bg-[var(--bg)] border border-[var(--border)] hover:bg-[var(--surface)] text-[var(--fg-2)] text-[13px] font-medium py-2.5 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 transition-colors press-feedback"
               >
                 <Printer className="h-4 w-4" strokeWidth={1.5} />
                 <span>Imprimir</span>
@@ -227,7 +227,7 @@ export default function TicketModal({
 
               <button
                 onClick={handleWhatsApp}
-                className="flex-1 bg-[var(--accent-soft)] hover:bg-[var(--accent-soft)]/70 text-[var(--accent)] text-[13px] font-medium py-2.5 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 transition-colors border border-[var(--accent)]/15"
+                className="flex-1 bg-[var(--accent-soft)] hover:bg-[var(--accent-soft)]/70 text-[var(--accent)] text-[13px] font-medium py-2.5 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 transition-colors border border-[var(--accent)]/15 press-feedback"
               >
                 <Share2 className="h-4 w-4" strokeWidth={1.5} />
                 <span>WhatsApp</span>

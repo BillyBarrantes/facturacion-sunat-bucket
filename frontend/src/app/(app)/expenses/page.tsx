@@ -115,23 +115,57 @@ export default function ExpensesPage() {
             />
           </label>
 
-          <button
-            onClick={handleProcessOcr}
-            disabled={!selectedFile || isProcessing}
-            className="w-full bg-[var(--fg)] hover:bg-[var(--fg-hover)] text-white text-[14px] font-medium py-3 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <ScanLine className="h-4 w-4" strokeWidth={1.5} />
-            <span>{isProcessing ? 'Escaneando...' : 'Extraer datos con IA'}</span>
-          </button>
+          <div className={selectedFile ? 'sm:static fixed bottom-20 left-0 right-0 px-5 sm:px-0 z-10 sm:z-auto' : ''}>
+            <button
+              onClick={handleProcessOcr}
+              disabled={!selectedFile || isProcessing}
+              className="w-full bg-[var(--fg)] hover:bg-[var(--fg-hover)] text-white text-[14px] font-medium py-3 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg sm:shadow-none press-feedback"
+            >
+              <ScanLine className="h-4 w-4" strokeWidth={1.5} />
+              <span>{isProcessing ? 'Escaneando...' : 'Extraer datos con IA'}</span>
+            </button>
+          </div>
         </section>
 
         {/* Columna derecha — Resultado */}
         <section className="bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-lg)] p-5 md:p-6 space-y-4 md:space-y-5 shadow-[var(--shadow-card)]">
           <h2 className="text-[14px] font-semibold text-[var(--fg)] tracking-tight">Datos extraídos</h2>
 
-          {extractedData ? (
+          {isProcessing ? (
             <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-[var(--r-pill)] bg-[var(--accent-soft)] text-[var(--accent)] text-[12px] font-medium">
+              <div className="h-7 w-48 rounded-[var(--r-pill)] skeleton-shimmer" />
+              <div className="bg-[var(--surface)] rounded-[var(--r-md)] border border-[var(--border)] p-4 space-y-3">
+                <div className="space-y-1.5">
+                  <div className="h-3 w-20 rounded skeleton-shimmer" />
+                  <div className="h-4 w-32 rounded skeleton-shimmer" />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="h-3 w-24 rounded skeleton-shimmer" />
+                  <div className="h-4 w-48 rounded skeleton-shimmer" />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="h-3 w-28 rounded skeleton-shimmer" />
+                  <div className="h-4 w-24 rounded skeleton-shimmer" />
+                </div>
+              </div>
+              <div className="border-t border-[var(--border-soft)] pt-4 space-y-2.5">
+                <div className="flex justify-between">
+                  <div className="h-3 w-20 rounded skeleton-shimmer" />
+                  <div className="h-3 w-16 rounded skeleton-shimmer" />
+                </div>
+                <div className="flex justify-between">
+                  <div className="h-3 w-28 rounded skeleton-shimmer" />
+                  <div className="h-3 w-14 rounded skeleton-shimmer" />
+                </div>
+                <div className="flex justify-between pt-2 border-t border-[var(--border-soft)]">
+                  <div className="h-4 w-12 rounded skeleton-shimmer" />
+                  <div className="h-4 w-16 rounded skeleton-shimmer" />
+                </div>
+              </div>
+            </div>
+          ) : extractedData ? (
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-[var(--r-pill)] bg-[var(--accent-soft)] text-[var(--accent)] text-[12px] font-medium animate-scale-in">
                 <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={1.75} />
                 Matemática validada · Gravado + IGV = Total
               </div>

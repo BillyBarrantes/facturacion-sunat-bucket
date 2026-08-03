@@ -3,7 +3,7 @@
 import React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { FilePlus2, LayoutDashboard, ScanLine, FileText, LogOut, User } from 'lucide-react'
+import { FilePlus2, LayoutDashboard, ScanLine, FileText, LogOut, User, Settings, Receipt } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 
 export default function Navbar() {
@@ -35,6 +35,8 @@ export default function Navbar() {
         role="navigation"
         aria-label="Menu principal"
       >
+        {/* Brand accent line */}
+        <div className="h-[2px] bg-[var(--fg)]" />
         <div className="flex items-center gap-3 px-6 h-16 border-b border-[var(--border)]">
           <div className="h-7 w-7 rounded-[var(--r-sm)] bg-[var(--fg)] flex items-center justify-center">
             <FileText className="h-4 w-4 text-white" strokeWidth={1.5} aria-hidden="true" />
@@ -53,10 +55,10 @@ export default function Navbar() {
                 key={item.href}
                 href={item.href}
                 aria-current={isActive ? 'page' : undefined}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-[var(--r-sm)] text-[14px] font-medium transition-colors ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-[var(--r-sm)] text-[14px] font-medium transition-colors duration-[var(--dur-fast)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1 ${
                   isActive
                     ? 'bg-[var(--bg)] text-[var(--fg)] shadow-[var(--shadow-card)]'
-                    : 'text-[var(--muted)] hover:text-[var(--fg-2)] hover:bg-[rgba(13,13,13,0.04)]'
+                    : 'text-[var(--muted)] hover:text-[var(--fg-2)] hover:bg-[var(--surface-2)]'
                 }`}
               >
                 <Icon className="h-[18px] w-[18px]" strokeWidth={1.5} aria-hidden="true" />
@@ -66,6 +68,35 @@ export default function Navbar() {
           })}
         </nav>
 
+        {/* Secondary nav */}
+        <div className="px-3 pb-2 space-y-0.5">
+          <Link
+            href="/billing/nc-nd"
+            aria-current={pathname === '/billing/nc-nd' ? 'page' : undefined}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-[var(--r-sm)] text-[14px] font-medium transition-colors duration-[var(--dur-fast)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1 ${
+              pathname === '/billing/nc-nd'
+                ? 'bg-[var(--bg)] text-[var(--fg)] shadow-[var(--shadow-card)]'
+                : 'text-[var(--muted)] hover:text-[var(--fg-2)] hover:bg-[var(--surface-2)]'
+            }`}
+          >
+            <Receipt className="h-[18px] w-[18px]" strokeWidth={1.5} aria-hidden="true" />
+            <span>NC / ND</span>
+          </Link>
+
+          <Link
+            href="/settings"
+            aria-current={pathname === '/settings' ? 'page' : undefined}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-[var(--r-sm)] text-[14px] font-medium transition-colors duration-[var(--dur-fast)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1 ${
+              pathname === '/settings'
+                ? 'bg-[var(--bg)] text-[var(--fg)] shadow-[var(--shadow-card)]'
+                : 'text-[var(--muted)] hover:text-[var(--fg-2)] hover:bg-[var(--surface-2)]'
+            }`}
+          >
+            <Settings className="h-[18px] w-[18px]" strokeWidth={1.5} aria-hidden="true" />
+            <span>Configuración</span>
+          </Link>
+        </div>
+
         {session && (
           <div className="px-6 py-3 border-t border-[var(--border)] space-y-2">
             <div className="flex items-center gap-2 text-[12px] text-[var(--muted)]">
@@ -74,7 +105,7 @@ export default function Navbar() {
             </div>
             <button
               onClick={handleLogout}
-              className="w-full flex items-center justify-center gap-2 py-2 rounded-[var(--r-sm)] text-[13px] font-medium text-[var(--danger)] hover:bg-[var(--danger-soft)] transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-[var(--r-sm)] text-[13px] font-medium text-[var(--danger)] hover:bg-[var(--danger-soft)] transition-colors duration-[var(--dur-fast)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--danger)] focus-visible:ring-offset-1"
               aria-label="Cerrar sesion"
             >
               <LogOut className="h-4 w-4" strokeWidth={1.5} />
@@ -84,7 +115,7 @@ export default function Navbar() {
         )}
 
         <div className="px-6 py-4 border-t border-[var(--border)]">
-          <p className="text-[11px] text-[var(--muted-2)] tracking-[var(--tracking-small)]">UBL 2.1 . SUNAT SEE</p>
+          <p className="text-[11px] text-[var(--muted)] tracking-[var(--tracking-small)]">UBL 2.1 · SUNAT SEE</p>
         </div>
       </aside>
 
@@ -103,8 +134,8 @@ export default function Navbar() {
               key={item.href}
               href={item.href}
               aria-current={isActive ? 'page' : undefined}
-              className={`flex flex-col items-center justify-center gap-0.5 min-h-[52px] flex-1 px-1 py-2 rounded-[var(--r-sm)] text-[10px] font-medium transition-colors relative ${
-                isActive ? 'text-[var(--accent)]' : 'text-[var(--muted)]'
+              className={`flex flex-col items-center justify-center gap-0.5 min-h-[52px] flex-1 px-1 py-2 rounded-[var(--r-sm)] text-[10px] font-medium transition-colors duration-[var(--dur-fast)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] relative ${
+                isActive ? 'text-[var(--accent)]' : 'text-[var(--muted)] hover:text-[var(--fg-2)] hover:bg-[var(--surface-2)]'
               }`}
             >
               <Icon className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
@@ -117,10 +148,10 @@ export default function Navbar() {
         })}
         {session && (
           <button
-            onClick={handleLogout}
-            aria-label="Cerrar sesion"
-            className={`flex flex-col items-center justify-center gap-0.5 min-h-[52px] flex-1 px-2 py-2 text-[10px] font-medium transition-colors text-[var(--muted)]`}
-          >
+              onClick={handleLogout}
+              aria-label="Cerrar sesion"
+              className="flex flex-col items-center justify-center gap-0.5 min-h-[52px] flex-1 px-2 py-2 text-[10px] font-medium transition-colors duration-[var(--dur-fast)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--danger)] text-[var(--muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)]"
+            >
             <LogOut className="h-5 w-5" strokeWidth={1.5} />
             <span className="leading-tight">Salir</span>
           </button>
