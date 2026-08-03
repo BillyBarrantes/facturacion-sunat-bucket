@@ -1,5 +1,6 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.security import verify_token, require_tenant
 from app.core.database import init_pool, close_pool
@@ -10,6 +11,7 @@ from app.api.endpoints.dashboard import router as dashboard_router
 from app.api.endpoints.reports import router as reports_router
 from app.api.endpoints.purchases import router as purchases_router
 from typing import Dict, Any
+import jwt
 import logging
 
 logger = logging.getLogger(__name__)
@@ -37,6 +39,22 @@ app.include_router(comprobantes_router, prefix=settings.API_V1_STR)
 app.include_router(dashboard_router, prefix=settings.API_V1_STR)
 app.include_router(reports_router, prefix=settings.API_V1_STR)
 app.include_router(purchases_router, prefix=settings.API_V1_STR)
+
+
+@app.exception_handler(jwt.PyJWTError)
+async def jwt_exception_handler(request: Request, exc: jwt.PyJWTError):
+    detail = str(exc) or exc.__class__.__name__
+    logger.warning(
+        "[AUTH] %s rechazado: %s: %s",
+        request.url.path, type(exc).__name__, detail[:200],
+    )
+    return JSONResponse(
+        status_code=401,
+        content={
+            "detail": "Token invalido o expirado. Vuelve a iniciar sesion.",
+            "error_type": type(exc).__name__,
+        },
+    )
 
 
 @app.on_event("startup")
