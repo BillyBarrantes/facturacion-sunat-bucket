@@ -123,10 +123,18 @@ export default function NcNdPage() {
     setIsSubmitting(true)
     try {
       const res = await api.emitir(payload)
-      setSuccessMsg(
-        `Nota emitida correctamente: ${res.comprobante} · Estado SUNAT: ${res.estado_sunat}` +
-        (res.mensaje_sunat ? ` · ${res.mensaje_sunat}` : '')
-      )
+      if (res.estado_sunat === 'ACEPTADO') {
+        setSuccessMsg(
+          `${tipoNota === 'NC' ? 'Nota de crédito' : 'Nota de débito'} emitida: ${res.comprobante}` +
+          (res.mensaje_sunat ? ` · ${res.mensaje_sunat}` : ' · ACEPTADO por SUNAT')
+        )
+      } else {
+        setErrorMsg(
+          `Nota ${res.estado_sunat}: ${res.comprobante}` +
+          (res.mensaje_sunat ? ` — ${res.mensaje_sunat}` : '') +
+          `. Puede consultar el estado en el historial.`
+        )
+      }
       // Reset parcial
       setMontoAjuste('')
       setObservaciones('')

@@ -86,6 +86,7 @@ def listar_comprobantes(current_user: Dict[str, Any] = Depends(require_tenant)):
             SELECT 
                 c.id, c.tipo_comprobante, c.serie, c.numero, c.fecha_emision,
                 c.moneda, c.importe_total, c.total_gravado, c.total_igv, c.estado_sunat, c.hash_cpe,
+                c.motivo, c.doc_referencia_tipo, c.doc_referencia_serie, c.doc_referencia_numero,
                 cl.num_doc, cl.razon_social, cl.direccion
             FROM public.comprobantes c
             LEFT JOIN public.clientes cl ON c.cliente_id = cl.id
@@ -127,9 +128,13 @@ def listar_comprobantes(current_user: Dict[str, Any] = Depends(require_tenant)):
                 "total_igv": float(r[8] or 0),
                 "estado_sunat": r[9],
                 "hash_cpe": r[10] or "",
-                "cliente_num_doc": r[11] or "00000000",
-                "cliente_razon_social": r[12] or "CLIENTES VARIOS",
-                "cliente_direccion": r[13] or "",
+                "motivo": r[11] or "",
+                "doc_referencia_tipo": r[12] or "",
+                "doc_referencia_serie": r[13] or "",
+                "doc_referencia_numero": r[14] or "",
+                "cliente_num_doc": r[15] or "00000000",
+                "cliente_razon_social": r[16] or "CLIENTES VARIOS",
+                "cliente_direccion": r[17] or "",
                 "items": items_list
             })
         return {"success": True, "comprobantes": comprobantes}
