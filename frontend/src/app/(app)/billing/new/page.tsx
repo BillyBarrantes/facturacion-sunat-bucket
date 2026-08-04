@@ -405,10 +405,12 @@ export default function NewInvoicePage() {
         metodo_pago: 'EFECTIVO',
       }
 
+      let refSerieNumeroEmit: string | undefined
       if (ncNd) {
         const ref = comprobantesReferenciables.find(c => c.id === referenciaId)
         if (!ref) throw new Error('Falta comprobante referencia')
         const [serieRef, numeroRef] = ref.serie_numero.split('-')
+        refSerieNumeroEmit = ref.serie_numero
         itemsPayload = [{
           codigo: 'NC01',
           descripcion: `${motivoNota}${observacionesNota ? ' — ' + observacionesNota : ''}`,
@@ -440,7 +442,12 @@ export default function NewInvoicePage() {
 
       setComprobanteEmitido(prev => prev ? {
         ...prev,
-        serieNumero: data.comprobante || prev.serieNumero,
+        // NC/ND: el número real de la nota debe DIFFERIR del doc referencia.
+        // Si el backend devuelve el mismo número del comprobante original (reserva el correlativo),
+        // el frontend lo rechaza para no duplicar y mantiene "Se asignará al emitir".
+        serieNumero: ncNd && refSerieNumeroEmit && data.comprobante === refSerieNumeroEmit
+          ? prev.serieNumero
+          : (data.comprobante || prev.serieNumero),
         hashCpe: data.hash_cpe || '',
         estadoSunat: data.estado_sunat || '',
       } : null)

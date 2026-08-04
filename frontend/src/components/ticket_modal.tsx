@@ -182,7 +182,11 @@ export default function TicketModal({
             <div className="border-b border-dashed border-[var(--border)] my-2" />
 
             <div className="text-center font-semibold text-[11px]">{tipoTitulo}</div>
-            <div className="text-center font-semibold text-[13px]">{comprobante.serieNumero}</div>
+            <div className="text-center font-semibold text-[13px]">
+              {comprobante.serieNumero === '—-—' || !comprobante.serieNumero
+                ? 'Se asignará al emitir'
+                : comprobante.serieNumero}
+            </div>
             <div className="text-center text-[10px] text-[var(--muted)]">Fecha de emisión: {fecha}</div>
             <div className="border-b border-dashed border-[var(--border)] my-2" />
 
