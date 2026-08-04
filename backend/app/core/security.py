@@ -102,27 +102,11 @@ def _verify_with_jwks(token: str, jwks: Dict[str, Any]) -> Dict[str, Any]:
             )
             continue
 
-    # 3) Fallback HS256 (tokens legacy locales) — separado de jwks_err
-    supabase_jwt_secret = settings.SUPABASE_JWT_SECRET
-    if supabase_jwt_secret:
-        logger.warning("[AUTH] JWKS no valido token, intentando fallback HS256 ...")
-        try:
-            return jwt.decode(
-                token,
-                key=supabase_jwt_secret,
-                algorithms=["HS256"],
-                options={"verify_exp": True, "verify_aud": False, "verify_iss": False},
-            )
-        except Exception as hs_err:
-            logger.error(
-                "[AUTH] Fallback HS256 tambien fallo: %s: %s",
-                type(hs_err).__name__, str(hs_err)[:300],
-            )
-
-    # 4) Lanzar el error real del JWKS — NO el del fallback HS256
+    # 3) Sin fallback: solo JWKS/ES256 es válido. Si ningún JWK verificó,
+    # lanzar el error real (no hay camino legacy).
     if jwks_err:
         raise jwks_err
-    raise jwt.InvalidTokenError("No se pudo verificar el token: sin JWK aplicable y sin SUPABASE_JWT_SECRET")
+    raise jwt.InvalidTokenError("No se pudo verificar el token: sin JWK aplicable en JWKS")
 
 
 def _fetch_profile(user_id: str) -> Optional[Dict[str, Any]]:
