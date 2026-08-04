@@ -6,6 +6,7 @@ import type {
   EmitirRequest, EmitirResponse,
   ListarResponse,
   OcrResponse,
+  CdrStatusResponse,
   ApiError,
 } from './api-types'
 import { readSession, refreshStoredToken, clearSession as clearStoredSession } from './session-store'
@@ -138,6 +139,9 @@ export const api = {
 
   sireExcel: (periodo: string) =>
     request<Response>('GET', `/api/v1/reports/sire-ventas/excel?periodo=${periodo}`, undefined, { raw: true }),
+
+  getStatusCdr: (comprobanteId: string) =>
+    request<CdrStatusResponse>('POST', `/api/v1/comprobantes/get-status-cdr/${comprobanteId}`),
 
   ocr: (file: File) => {
     const fd = new FormData()

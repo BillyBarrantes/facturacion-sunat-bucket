@@ -147,6 +147,16 @@ export interface ListarResponse {
   comprobantes: ComprobanteOut[]
 }
 
+export interface CdrStatusResponse {
+  success: boolean
+  comprobante_id: string
+  estado_sunat: string
+  codigo_sunat?: string
+  mensaje_sunat?: string
+  hash_cpe?: string
+  fecha_envio?: string
+}
+
 // ─── Purchases / OCR ─────────────────────────────────
 export interface OcrExtraidoOut {
   ruc_proveedor: string

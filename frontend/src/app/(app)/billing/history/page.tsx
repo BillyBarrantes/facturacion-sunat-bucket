@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { Source_Serif_4 } from 'next/font/google'
-import { Search, RefreshCw, Printer, Share2, FileText, FilePlus2, AlertCircle, Receipt, FileOutput } from 'lucide-react'
+import { Search, RefreshCw, Printer, Share2, FileText, FilePlus2, AlertCircle, Receipt, FileOutput, RotateCw } from 'lucide-react'
 import { api, ApiClientError } from '@/lib/api-client'
 import type { ComprobanteOut } from '@/lib/api-types'
 
@@ -36,6 +36,11 @@ export default function HistoryPage() {
   const [fetchError, setFetchError] = useState('')
 
   const [comprobantes, setComprobantes] = useState<ComprobanteOut[]>([])
+  const [reconsultando, setReconsultando] = useState<string | null>(null)
+  const [reconsultaMsg, setReconsultaMsg] = useState<{ id: string; ok: boolean; text: string } | null>(null)
+
+  // Estados finales de SUNAT — no originan reconsulta.
+  const ESTADOS_FINALES = ['ACEPTADO', 'RECHAZADO', 'ANULADO']
 
   const fetchComprobantes = async () => {
     setLoading(true)
@@ -63,12 +68,54 @@ export default function HistoryPage() {
     return matchesTipo && matchesSearch
   })
 
+  // Backend devuelve 07/08 — unificamos a etiquetas internas para visualización y filtros.
+  const NC_LABEL = 'NC'
+  const ND_LABEL = 'ND'
+  const NC_CODE = '07'
+  const ND_CODE = '08'
+
   const tipoComprobanteNombre = (tipo: string) => {
     if (tipo === '01') return 'FACTURA ELECTRÓNICA'
     if (tipo === '03') return 'BOLETA DE VENTA ELECTRÓNICA'
-    if (tipo === 'NC') return 'NOTA DE CRÉDITO'
-    if (tipo === 'ND') return 'NOTA DE DÉBITO'
+    if (tipo === NC_CODE) return 'NOTA DE CRÉDITO'
+    if (tipo === ND_CODE) return 'NOTA DE DÉBITO'
     return 'COMPROBANTE'
+  }
+
+  // Etiqueta corta para chips/badges (mantiene NC/ND visible aunque el código backend sea 07/08).
+  const tipoComprobanteLabel = (tipo: string) => {
+    if (tipo === NC_CODE) return NC_LABEL
+    if (tipo === ND_CODE) return ND_LABEL
+    return tipo
+  }
+
+  const handleReconsultarCdr = async (comprobanteId: string) => {
+    setReconsultando(comprobanteId)
+    setReconsultaMsg(null)
+    try {
+      const res = await api.getStatusCdr(comprobanteId)
+      setComprobantes(prev =>
+        prev.map(c =>
+          c.id === comprobanteId
+            ? {
+                ...c,
+                estado_sunat: res.estado_sunat ?? c.estado_sunat,
+                hash_cpe: res.hash_cpe ?? c.hash_cpe,
+              }
+            : c
+        )
+      )
+      setReconsultaMsg({
+        id: comprobanteId,
+        ok: true,
+        text: `Reconsulta completada · estado: ${res.estado_sunat ?? 'sin cambio'}`,
+      })
+    } catch (e) {
+      const msg = e instanceof ApiClientError ? e.detail : 'No se pudo reconsultar el CDR'
+      setReconsultaMsg({ id: comprobanteId, ok: false, text: msg })
+    } finally {
+      setReconsultando(null)
+    }
   }
 
   const handleOpenTicket = (c: ComprobanteOut) => {
@@ -105,16 +152,16 @@ export default function HistoryPage() {
     { value: 'ALL', label: 'Todos' },
     { value: '01', label: 'Facturas' },
     { value: '03', label: 'Boletas' },
-    { value: 'NC', label: 'NC' },
-    { value: 'ND', label: 'ND' },
+    { value: NC_CODE, label: 'NC' },
+    { value: ND_CODE, label: 'ND' },
   ]
 
   const summary = {
     total: comprobantes.length,
     facturas: comprobantes.filter(c => c.tipo_comprobante === '01').length,
     boletas: comprobantes.filter(c => c.tipo_comprobante === '03').length,
-    nc: comprobantes.filter(c => c.tipo_comprobante === 'NC').length,
-    nd: comprobantes.filter(c => c.tipo_comprobante === 'ND').length,
+    nc: comprobantes.filter(c => c.tipo_comprobante === NC_CODE).length,
+    nd: comprobantes.filter(c => c.tipo_comprobante === ND_CODE).length,
     aceptados: comprobantes.filter(c => c.estado_sunat === 'ACEPTADO').length,
     observados: comprobantes.filter(c => c.estado_sunat === 'OBSERVADO').length,
   }
@@ -296,7 +343,7 @@ export default function HistoryPage() {
             <div className="sm:hidden divide-y divide-[var(--border-soft)]">
               {filteredComprobantes.map((c) => {
                 const isFactura = c.tipo_comprobante === '01'
-                const isNcNd = c.tipo_comprobante === 'NC' || c.tipo_comprobante === 'ND'
+                const isNcNd = c.tipo_comprobante === NC_CODE || c.tipo_comprobante === ND_CODE
                 return (
                   <div key={c.id} className="p-4 space-y-2.5">
                     <div className="flex items-start justify-between gap-3">
@@ -307,11 +354,11 @@ export default function HistoryPage() {
                         <span className="font-[family-name:var(--font-geist-mono)] text-[13px] font-medium text-[var(--fg)] truncate">{c.serie_numero}</span>
                         {isNcNd && (
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-[var(--r-pill)] text-[10px] font-medium ${
-                            c.tipo_comprobante === 'NC'
+                            c.tipo_comprobante === NC_CODE
                               ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
                               : 'bg-[var(--warn-soft)] text-[var(--warn)]'
                           }`}>
-                            {c.tipo_comprobante}
+                            {tipoComprobanteLabel(c.tipo_comprobante)}
                           </span>
                         )}
                       </div>
@@ -335,7 +382,26 @@ export default function HistoryPage() {
                       <button onClick={() => handleWhatsApp(c)} className="h-9 w-9 grid place-items-center rounded-[var(--r-sm)] text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--surface)] transition-colors" aria-label="Compartir por WhatsApp">
                         <Share2 className="h-4 w-4" strokeWidth={1.5} />
                       </button>
+                      {!ESTADOS_FINALES.includes(c.estado_sunat) && (
+                        <button
+                          onClick={() => handleReconsultarCdr(c.id)}
+                          disabled={reconsultando === c.id}
+                          className="ml-auto h-9 px-3 inline-flex items-center gap-1.5 rounded-[var(--r-sm)] border border-[var(--border)] text-[12px] font-medium text-[var(--fg-2)] hover:bg-[var(--surface)] hover:text-[var(--fg)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Reconsultar CDR en SUNAT"
+                          aria-label="Reconsultar CDR"
+                        >
+                          {reconsultando === c.id
+                            ? <RotateCw className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+                            : <RotateCw className="h-3.5 w-3.5" strokeWidth={1.5} />}
+                          <span>Reconsultar</span>
+                        </button>
+                      )}
                     </div>
+                    {reconsultaMsg?.id === c.id && (
+                      <div className={`text-[11px] mt-1 ${reconsultaMsg.ok ? 'text-[var(--accent)]' : 'text-[var(--danger)]'}`} role="status">
+                        {reconsultaMsg.text}
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -357,7 +423,7 @@ export default function HistoryPage() {
                 <tbody className="divide-y divide-[var(--border-soft)]">
                   {filteredComprobantes.map((c) => {
                     const isFactura = c.tipo_comprobante === '01'
-                    const isNcNd = c.tipo_comprobante === 'NC' || c.tipo_comprobante === 'ND'
+                    const isNcNd = c.tipo_comprobante === NC_CODE || c.tipo_comprobante === ND_CODE
                     return (
                       <tr key={c.id} className="hover:bg-[var(--surface)] transition-colors">
                         <td className="px-5 py-3.5">
@@ -368,11 +434,11 @@ export default function HistoryPage() {
                             <span className="font-[family-name:var(--font-geist-mono)] text-[13px] font-medium text-[var(--fg)]">{c.serie_numero}</span>
                             {isNcNd && (
                               <span className={`inline-flex items-center px-2 py-0.5 rounded-[var(--r-pill)] text-[10px] font-medium ${
-                                c.tipo_comprobante === 'NC'
+                                c.tipo_comprobante === NC_CODE
                                   ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
                                   : 'bg-[var(--warn-soft)] text-[var(--warn)]'
                               }`}>
-                                {c.tipo_comprobante}
+                                {tipoComprobanteLabel(c.tipo_comprobante)}
                               </span>
                             )}
                           </div>
@@ -397,7 +463,25 @@ export default function HistoryPage() {
                             <button onClick={() => handleWhatsApp(c)} className="h-9 w-9 md:h-7 md:w-7 grid place-items-center rounded-[var(--r-sm)] text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--surface)] transition-colors" title="Compartir por WhatsApp" aria-label="Compartir por WhatsApp">
                               <Share2 className="h-4 w-4 md:h-3.5 md:w-3.5" strokeWidth={1.5} />
                             </button>
+                            {!ESTADOS_FINALES.includes(c.estado_sunat) && (
+                              <button
+                                onClick={() => handleReconsultarCdr(c.id)}
+                                disabled={reconsultando === c.id}
+                                className="h-9 w-9 md:h-7 md:w-7 grid place-items-center rounded-[var(--r-sm)] text-[var(--muted)] hover:text-[var(--fg)] hover:bg-[var(--surface)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Reconsultar CDR"
+                                aria-label="Reconsultar CDR"
+                              >
+                                {reconsultando === c.id
+                                  ? <RotateCw className="h-4 w-4 md:h-3.5 md:w-3.5 animate-spin" strokeWidth={1.5} />
+                                  : <RotateCw className="h-4 w-4 md:h-3.5 md:w-3.5" strokeWidth={1.5} />}
+                              </button>
+                            )}
                           </div>
+                          {reconsultaMsg?.id === c.id && (
+                            <div className={`text-[11px] mt-1 ${reconsultaMsg.ok ? 'text-[var(--accent)]' : 'text-[var(--danger)]'}`} role="status">
+                              {reconsultaMsg.text}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )
