@@ -200,12 +200,26 @@ def test_send_summary_error_soap(mock_client_cls):
 # ─── Correlativo atómico con cursor mock ───────────────────────────────
 def test_next_correlativo_flujo():
     cursor = MagicMock()
-    cursor.fetchone.return_value = (5,)
+    # fetchone ahora devuelve (ultimo_numero, max_numero_comprobantes)
+    cursor.fetchone.return_value = (5, 5)
     n = next_correlativo(cursor, "company-uuid", "01", "F001")
     assert n == 6
     calls = [c[0][0] for c in cursor.execute.call_args_list]
     assert "FOR UPDATE" in calls[1]
     assert "UPDATE public.correlativos" in calls[2]
+
+
+def test_next_correlativo_drift_comprobantes_mayor():
+    """Si MAX(comprobantes.numero) > correlativos.ultimo_numero (drift),
+    next_correlativo debe resincronizar hacia adelante para evitar
+    duplicate key en unique_comprobante_per_company."""
+    cursor = MagicMock()
+    # comprobantes ya tiene numero=3, correlativos quedó en 2
+    cursor.fetchone.return_value = (2, 3)
+    n = next_correlativo(cursor, "company-uuid", "01", "F001")
+    assert n == 4  # max(2,3)+1 = 4, salta el colisionado
+    calls = [c[0][0] for c in cursor.execute.call_args_list]
+    assert "MAX(comp.numero)" in calls[1]
 
 
 def test_peek_correlativo():
