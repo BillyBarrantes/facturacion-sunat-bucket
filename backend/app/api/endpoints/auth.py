@@ -1,7 +1,7 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, EmailStr, Field
 import httpx
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from app.core.config import settings
 from app.core.security import get_db_connection, require_tenant
 

@@ -46,16 +46,27 @@ def run_migration():
         script_dir = os.path.dirname(os.path.abspath(__file__))
         schema_path = os.path.join(script_dir, "schema.sql")
 
-        with open(schema_path, "r", encoding="utf-8") as f:
-            sql_script = f.read()
-
         cur = conn.cursor()
-        print("Ejecutando script DDL y politicas RLS en Supabase...")
-        cur.execute(sql_script)
+        print("Ejecutando schema DDL y politicas RLS en Supabase...")
+        with open(schema_path, "r", encoding="utf-8") as f:
+            cur.execute(f.read())
         conn.commit()
+
+        # Ejecutar migraciones incrementales numeradas (00x_*.sql)
+        # ALTER TABLE ... ADD COLUMN IF NOT EXISTS para alinear BD existentes.
+        migrations = sorted(
+            f for f in os.listdir(script_dir)
+            if f.endswith(".sql") and f[:3].isdigit() and f != "schema.sql"
+        )
+        for mig in migrations:
+            mig_path = os.path.join(script_dir, mig)
+            print(f"Ejecutando migracion incremental: {mig}")
+            with open(mig_path, "r", encoding="utf-8") as f:
+                cur.execute(f.read())
+            conn.commit()
         cur.close()
         conn.close()
-        print("Migracion ejecutada con exito! Todas las tablas y politicas RLS fueron creadas.")
+        print(f"Migracion ejecutada con exito! schema.sql + {len(migrations)} migraciones incrementales aplicadas.")
     except Exception as e:
         print(f"Error durante la ejecucion de la migracion: {e}")
         sys.exit(1)

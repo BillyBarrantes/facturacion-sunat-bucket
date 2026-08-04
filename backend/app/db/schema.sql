@@ -287,3 +287,18 @@ CREATE POLICY "correlativos_tenant_policy" ON public.correlativos
     FOR ALL
     USING (company_id = public.auth_company_id())
     WITH CHECK (company_id = public.auth_company_id());
+
+-- ==============================================================================
+-- MIGRACIONES INCREMENTALES (ALTER TABLE para tablas preexistentes)
+-- CREATE TABLE IF NOT EXISTS no añade columnas a tablas ya existentes,
+-- por eso se requiere ALTER TABLE ... ADD COLUMN IF NOT EXISTS para alinear
+-- la BD con el esquema declarado sin romper instalaciones previas.
+-- ==============================================================================
+
+-- FASE 2 (NC/ND): columnas para Notas de Crédito (07) y Notas de Débito (08)
+-- Referencian el CPE original que se está modificando/anulando.
+ALTER TABLE public.comprobantes
+    ADD COLUMN IF NOT EXISTS motivo TEXT,
+    ADD COLUMN IF NOT EXISTS doc_referencia_tipo VARCHAR(2),
+    ADD COLUMN IF NOT EXISTS doc_referencia_serie VARCHAR(4),
+    ADD COLUMN IF NOT EXISTS doc_referencia_numero INT;
