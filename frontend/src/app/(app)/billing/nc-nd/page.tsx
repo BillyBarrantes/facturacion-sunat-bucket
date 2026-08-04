@@ -1,8 +1,10 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Source_Serif_4 } from 'next/font/google'
-import { ClipboardList, Send, FileText, Receipt, Building } from 'lucide-react'
+import { ClipboardList, Send, FileText, Receipt, Building, Loader2, CheckCircle2, ShieldAlert } from 'lucide-react'
+import { api, ApiClientError } from '@/lib/api-client'
+import type { ComprobanteOut, EmitirRequest } from '@/lib/api-types'
 
 const sourceSerif = Source_Serif_4({
   variable: '--font-source-serif-4',
@@ -12,8 +14,135 @@ const sourceSerif = Source_Serif_4({
 
 type NcNdType = 'NC' | 'ND'
 
+const MOTIVOS_NC = [
+  'ANULACION DE LA OPERACION',
+  'DEVOLUCION TOTAL',
+  'DEVOLUCION PARCIAL',
+  'ERROR EN EL RUC DEL CLIENTE',
+  'OTRO',
+]
+
+const MOTIVOS_ND = [
+  'AUMENTO EN EL VALOR',
+  'INTERESES POR MORA',
+  'OTRO',
+]
+
 export default function NcNdPage() {
   const [tipoNota, setTipoNota] = React.useState<NcNdType>('NC')
+
+  const [comprobantesPrevios, setComprobantesPrevios] = useState<ComprobanteOut[]>([])
+  const [loadingComprobantes, setLoadingComprobantes] = useState(true)
+  const [referenciaId, setReferenciaId] = useState('')
+
+  const [motivo, setMotivo] = useState('')
+  const [observaciones, setObservaciones] = useState('')
+  const [montoAjuste, setMontoAjuste] = useState('')
+
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
+
+  const fetchComprobantes = useCallback(async () => {
+    setLoadingComprobantes(true)
+    try {
+      const data = await api.listar()
+      const referenciables = data.comprobantes.filter(
+        (c) => c.tipo_comprobante === '01' || c.tipo_comprobante === '03'
+      )
+      setComprobantesPrevios(referenciables)
+    } catch {
+      setErrorMsg('No se pudieron cargar tus comprobantes previos.')
+    } finally {
+      setLoadingComprobantes(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchComprobantes()
+  }, [fetchComprobantes])
+
+  const referencia = comprobantesPrevios.find((c) => c.id === referenciaId)
+
+  const montoNum = parseFloat(montoAjuste) || 0
+  const igvCalculado = montoNum > 0 ? montoNum - montoNum / 1.18 : 0
+  const motivos = tipoNota === 'NC' ? MOTIVOS_NC : MOTIVOS_ND
+
+  const handleSubmit = async () => {
+    setErrorMsg('')
+    setSuccessMsg('')
+
+    // Validaciones defensivas (el backend también las valida)
+    if (comprobantesPrevios.length === 0) {
+      setErrorMsg('Aún no tienes comprobantes emitidos. Emite primero una factura o boleta para poder generar una nota.')
+      return
+    }
+    if (!referencia) {
+      setErrorMsg('Selecciona un comprobante original al que aplica la nota.')
+      return
+    }
+    if (!motivo) {
+      setErrorMsg('El motivo es obligatorio.')
+      return
+    }
+    if (montoNum <= 0) {
+      setErrorMsg('El monto a ajustar debe ser mayor a cero.')
+      return
+    }
+
+    const tipoComp = tipoNota === 'NC' ? '07' : '08'
+    const serie = referencia.tipo_comprobante === '01' ? 'F001' : 'B001'
+
+    const [serieRef, numeroRef] = referencia.serie_numero.split('-')
+
+    const payload: EmitirRequest = {
+      tipo_comprobante: tipoComp,
+      serie,
+      numero: 1,  // backend reserva el real vía next_correlativo
+      cliente_tipo_doc: referencia.cliente_num_doc && referencia.cliente_num_doc.length === 11 ? '6' : '1',
+      cliente_num_doc: referencia.cliente_num_doc || '00000000',
+      cliente_razon_social: referencia.cliente_razon_social || 'CLIENTE',
+      cliente_direccion: referencia.cliente_direccion || '',
+      moneda: 'PEN',
+      metodo_pago: 'EFECTIVO',
+      items: [
+        {
+          codigo: 'NC01',
+          descripcion: `${motivo}${observaciones ? ' — ' + observaciones : ''}`,
+          unidad_medida: 'ZZ',
+          cantidad: 1,
+          precio_unitario: montoNum,
+        },
+      ],
+      comprobante_referencia_tipo: referencia.tipo_comprobante,
+      comprobante_referencia_serie: serieRef,
+      comprobante_referencia_numero: parseInt(numeroRef, 10),
+      motivo,
+    }
+
+    setIsSubmitting(true)
+    try {
+      const res = await api.emitir(payload)
+      setSuccessMsg(
+        `Nota emitida correctamente: ${res.comprobante} · Estado SUNAT: ${res.estado_sunat}` +
+        (res.mensaje_sunat ? ` · ${res.mensaje_sunat}` : '')
+      )
+      // Reset parcial
+      setMontoAjuste('')
+      setObservaciones('')
+      setReferenciaId('')
+      setMotivo('')
+    } catch (err: unknown) {
+      const msg = err instanceof ApiClientError
+        ? err.detail
+        : err instanceof Error
+          ? err.message
+          : 'Error al emitir nota. Intenta de nuevo.'
+      setErrorMsg(msg)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <main className={`${sourceSerif.variable} flex-1 max-w-[1100px] w-full mx-auto px-5 md:px-10 py-8 md:py-14 space-y-5 md:space-y-6`}>
@@ -38,7 +167,7 @@ export default function NcNdPage() {
             role="tab"
             id="tab-nc"
             aria-selected={tipoNota === 'NC'}
-            onClick={() => setTipoNota('NC')}
+            onClick={() => { setTipoNota('NC'); setMotivo(''); setErrorMsg(''); setSuccessMsg('') }}
             className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 text-[13px] font-medium rounded-[6px] transition-colors ${
               tipoNota === 'NC'
                 ? 'bg-[var(--bg)] text-[var(--fg)] shadow-[var(--shadow-card)]'
@@ -54,7 +183,7 @@ export default function NcNdPage() {
             role="tab"
             id="tab-nd"
             aria-selected={tipoNota === 'ND'}
-            onClick={() => setTipoNota('ND')}
+            onClick={() => { setTipoNota('ND'); setMotivo(''); setErrorMsg(''); setSuccessMsg('') }}
             className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 text-[13px] font-medium rounded-[6px] transition-colors ${
               tipoNota === 'ND'
                 ? 'bg-[var(--bg)] text-[var(--fg)] shadow-[var(--shadow-card)]'
@@ -98,47 +227,61 @@ export default function NcNdPage() {
           <h2 className="text-[15px] font-semibold text-[var(--fg)] tracking-tight">Comprobante original</h2>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">Tipo de documento</label>
-            <select
-              disabled
-              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] pl-3 pr-9 py-2.5 text-[14px] text-[var(--fg)] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%235f5f5f%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-[length:16px] bg-[position:right_8px_center] bg-no-repeat opacity-50 cursor-not-allowed"
-            >
-              <option>{tipoNota === 'NC' ? 'Factura' : 'Boleta'}</option>
-            </select>
+        {loadingComprobantes ? (
+          <div className="space-y-2.5 py-2">
+            <div className="h-9 w-full rounded skeleton-shimmer" />
+            <div className="h-9 w-full rounded skeleton-shimmer" />
           </div>
+        ) : comprobantesPrevios.length === 0 ? (
+          <div className="py-8 text-center">
+            <p className="text-[14px] font-medium text-[var(--fg-2)] mb-1">Sin comprobantes referenciables</p>
+            <p className="text-[13px] text-[var(--muted)]">
+              Emite primero una factura o boleta en la sección Emitir para poder vincularla a una nota.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="sm:col-span-2 lg:col-span-2">
+              <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">
+                Selecciona comprobante <span className="text-[var(--danger)]">*</span>
+              </label>
+              <select
+                value={referenciaId}
+                onChange={(e) => { setReferenciaId(e.target.value); setErrorMsg(''); setSuccessMsg('') }}
+                className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] pl-3 pr-9 py-2.5 text-[14px] text-[var(--fg)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%235f5f5f%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-[length:16px] bg-[position:right_8px_center] bg-no-repeat"
+              >
+                <option value="">— Selecciona —</option>
+                {comprobantesPrevios.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.serie_numero} · {c.tipo_comprobante === '01' ? 'Factura' : 'Boleta'} · {c.cliente_razon_social || 'Cliente'} · S/ {c.importe_total.toFixed(2)}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div>
-            <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">Serie y número</label>
-            <input
-              type="text"
-              disabled
-              placeholder="F001-00000001"
-              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--fg)] font-[family-name:var(--font-geist-mono)] placeholder:text-[var(--muted-2)] opacity-50 cursor-not-allowed"
-            />
-          </div>
+            <div>
+              <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">Tipo</label>
+              <input
+                type="text"
+                readOnly
+                value={referencia ? (referencia.tipo_comprobante === '01' ? 'Factura' : 'Boleta') : ''}
+                placeholder={tipoNota === 'NC' ? 'Factura' : 'Boleta'}
+                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--muted)] font-[family-name:var(--font-geist-mono)] placeholder:text-[var(--muted-2)]"
+              />
+            </div>
 
-          <div>
-            <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">Fecha de emisión</label>
-            <input
-              type="text"
-              disabled
-              placeholder="01/08/2026"
-              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--fg)] font-[family-name:var(--font-geist-mono)] placeholder:text-[var(--muted-2)] opacity-50 cursor-not-allowed"
-            />
+            <div>
+              <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">Monto total</label>
+              <input
+                type="text"
+                readOnly
+                value={referencia ? `S/ ${referencia.importe_total.toFixed(2)}` : ''}
+                placeholder="S/ 0.00"
+                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--muted)] font-[family-name:var(--font-geist-mono)] placeholder:text-[var(--muted-2)]"
+              />
+            </div>
           </div>
-
-          <div>
-            <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">Monto total</label>
-            <input
-              type="text"
-              disabled
-              placeholder="S/ 0.00"
-              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--fg)] font-[family-name:var(--font-geist-mono)] placeholder:text-[var(--muted-2)] opacity-50 cursor-not-allowed"
-            />
-          </div>
-        </div>
+        )}
       </section>
 
       {/* Datos de la nota */}
@@ -154,58 +297,90 @@ export default function NcNdPage() {
               Motivo de {tipoNota === 'NC' ? 'credito' : 'debito'} <span className="text-[var(--danger)]">*</span>
             </label>
             <select
-              disabled
-              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] pl-3 pr-9 py-2.5 text-[14px] text-[var(--fg)] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%235f5f5f%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-[length:16px] bg-[position:right_8px_center] bg-no-repeat opacity-50 cursor-not-allowed"
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] pl-3 pr-9 py-2.5 text-[14px] text-[var(--fg)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%235f5f5f%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-[length:16px] bg-[position:right_8px_center] bg-no-repeat"
             >
-              <option>{tipoNota === 'NC' ? 'Anulación de la operación' : 'Aumento en el valor'}</option>
+              <option value="">— Selecciona un motivo —</option>
+              {motivos.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
             </select>
           </div>
 
           <div className="sm:col-span-2">
             <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">Descripción / Observaciones</label>
             <textarea
-              disabled
               rows={3}
-              placeholder="Detalle el motivo de la nota..."
-              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--fg)] placeholder:text-[var(--muted-2)] opacity-50 cursor-not-allowed resize-none"
+              value={observaciones}
+              onChange={(e) => setObservaciones(e.target.value)}
+              placeholder="Detalle el motivo de la nota (opcional)..."
+              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--fg)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors resize-none"
             />
           </div>
 
           <div>
-            <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">Monto a ajustar (S/)</label>
+            <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">Monto a ajustar (S/) <span className="text-[var(--danger)]">*</span></label>
             <input
-              type="text"
-              disabled
+              type="number"
+              min={0}
+              step="any"
+              value={montoAjuste}
+              onChange={(e) => setMontoAjuste(e.target.value)}
               placeholder="0.00"
-              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--fg)] font-[family-name:var(--font-geist-mono)] placeholder:text-[var(--muted-2)] opacity-50 cursor-not-allowed"
+              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--fg)] font-[family-name:var(--font-geist-mono)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">IGV (18%)</label>
+            <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">IGV (18%) — informativo</label>
             <input
               type="text"
-              disabled
+              readOnly
+              value={igvCalculado > 0 ? `S/ ${igvCalculado.toFixed(2)}` : ''}
               placeholder="S/ 0.00"
-              className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--fg)] font-[family-name:var(--font-geist-mono)] placeholder:text-[var(--muted-2)] opacity-50 cursor-not-allowed"
+              className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--muted)] font-[family-name:var(--font-geist-mono)] placeholder:text-[var(--muted-2)]"
             />
           </div>
         </div>
       </section>
 
-      {/* CTA — visual only */}
+      {/* Error */}
+      {errorMsg && (
+        <div className="bg-[var(--danger-soft)] border border-[var(--danger)]/20 text-[var(--danger)] p-4 rounded-[var(--r-sm)] text-[13px] flex items-center gap-3 animate-fade-in-up" role="alert" aria-live="assertive">
+          <ShieldAlert className="h-[18px] w-[18px] shrink-0" strokeWidth={1.5} />
+          <span>{errorMsg}</span>
+        </div>
+      )}
+
+      {/* Éxito */}
+      {successMsg && (
+        <div className="bg-[var(--accent-soft)] border border-[var(--accent)]/20 text-[var(--accent)] p-4 rounded-[var(--r-sm)] text-[13px] flex items-start gap-3 animate-fade-in-up" aria-live="polite">
+          <CheckCircle2 className="h-[18px] w-[18px] shrink-0 mt-0.5" strokeWidth={1.5} />
+          <span>{successMsg}</span>
+        </div>
+      )}
+
+      {/* CTA funcional */}
       <div className="pt-2 animate-fade-in-up animate-delay-4">
         <button
           type="button"
-          disabled
-          className="w-full bg-[var(--fg)] text-white text-[15px] font-medium py-3.5 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 opacity-50 cursor-not-allowed"
+          onClick={handleSubmit}
+          disabled={isSubmitting || !referencia || !motivo || montoNum <= 0}
+          className="w-full bg-[var(--fg)] hover:bg-[var(--fg-hover)] text-white text-[15px] font-medium py-3.5 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <Send className="h-4 w-4" strokeWidth={1.5} />
-          <span>Vista previa y emisión</span>
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.75} />
+              <span>Emitiendo nota...</span>
+            </>
+          ) : (
+            <>
+              <Send className="h-4 w-4" strokeWidth={1.5} />
+              <span>Vista previa y emisión</span>
+            </>
+          )}
         </button>
-        <p className="text-center text-[12px] text-[var(--muted-2)] mt-3">
-          Funcionalidad disponible próximamente.
-        </p>
       </div>
     </main>
   )

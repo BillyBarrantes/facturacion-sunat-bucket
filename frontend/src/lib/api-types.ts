@@ -96,6 +96,11 @@ export interface EmitirRequest {
   descuento_global?: number
   anticipo_total?: number
   items: DetalleItemIn[]
+  // Campos NC/ND (opcionales — solo cuando tipo_comprobante es 07/08)
+  comprobante_referencia_tipo?: string
+  comprobante_referencia_serie?: string
+  comprobante_referencia_numero?: number
+  motivo?: string
 }
 
 export interface EmitirResponse {
@@ -130,6 +135,11 @@ export interface ComprobanteOut {
   cliente_razon_social: string
   cliente_direccion: string
   items: DetalleItemOut[]
+  // NC/ND — devueltos por backend en historial (opcionales para no romper callers)
+  motivo?: string
+  doc_referencia_tipo?: string
+  doc_referencia_serie?: string
+  doc_referencia_numero?: number
 }
 
 export interface ListarResponse {
