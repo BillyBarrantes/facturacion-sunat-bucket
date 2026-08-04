@@ -19,10 +19,10 @@ def _mock_cursor(row=None):
     return cur
 
 
-def _row(sol_user="REALUSER", sol_pass="REALPASS"):
+def _row(sol_user="REALUSER", sol_pass="REALPASS", serie_nc=None, serie_nd=None):
     return (
         "20100000001", "Mi Empresa S.A.C.", "MiEmpresa", "AV. REAL 456", "150102",
-        "MIRAFLORES", "LIMA", sol_user, sol_pass,
+        "MIRAFLORES", "LIMA", sol_user, sol_pass, serie_nc, serie_nd,
     )
 
 

@@ -23,7 +23,7 @@ def _get_emisor_or_raise(company_id: str, cur) -> dict:
     """
     cur.execute(
         "SELECT ruc, razon_social, nombre_comercial, direccion, ubigeo, "
-        "distrito, provincia, sol_user, sol_pass_encrypted "
+        "distrito, provincia, sol_user, sol_pass_encrypted, serie_nc, serie_nd "
         "FROM public.companies WHERE id = %s",
         (company_id,),
     )
@@ -47,6 +47,8 @@ def _get_emisor_or_raise(company_id: str, cur) -> dict:
             "provincia": "LIMA",
             "sol_user": "MODDATOS",
             "sol_pass": "MODDATOS",
+            "serie_nc": None,
+            "serie_nd": None,
         }
 
     emisor = {
@@ -59,6 +61,8 @@ def _get_emisor_or_raise(company_id: str, cur) -> dict:
         "provincia": row[6],
         "sol_user": row[7],
         "sol_pass": row[8],
+        "serie_nc": row[9],
+        "serie_nd": row[10],
     }
 
     if is_prod:
@@ -238,6 +242,20 @@ def emitir_comprobante(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="El comprobante de referencia debe ser Factura (01) o Boleta (03)."
             )
+
+        # Override silencioso de serie NC/ND: la nota debe tener serie propia.
+        # La única serie aceptada es la canónica: la registrada por la empresa
+        # en companies.serie_nc/nd, o el default NC01/ND01 si no hay registrada.
+        # Si el payload trae la serie del documento afectado (F001/B001), está
+        # vacía, o cualquier otra distinta de la canónica, se sobreescribe en
+        # origen sin errores (backwards-compat: no rompe callers existentes).
+        campo_serie = "serie_nc" if payload.tipo_comprobante == "07" else "serie_nd"
+        default_canon = "NC01" if payload.tipo_comprobante == "07" else "ND01"
+        serie_canonica = (emisor.get(campo_serie) or default_canon).upper()
+
+        if (payload.serie or "").upper().strip() != serie_canonica:
+            print(f"[NC/ND] Serie '{payload.serie}' sobreescrita por '{serie_canonica}' (override silencioso)")
+            payload.serie = serie_canonica
 
     # 2. Calcular montos fiscales (IGV 18%)
     total_gravado = 0.0
