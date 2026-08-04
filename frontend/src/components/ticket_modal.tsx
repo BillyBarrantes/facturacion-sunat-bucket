@@ -27,6 +27,7 @@ interface TicketModalProps {
     hashCpe: string
     estadoSunat?: string
     items: Array<{ descripcion: string; cantidad: number; total: number; precio_unitario?: number }>
+    comprobanteReferencia?: string
   }
 }
 
@@ -45,13 +46,17 @@ export default function TicketModal({
   }
 
   const handleWhatsApp = () => {
+    const refLine = comprobante.comprobanteReferencia
+      ? `\nDoc. referencia: ${comprobante.comprobanteReferencia}`
+      : ''
     const text = encodeURIComponent(
       `*${comprobante.tipoComprobanteNombre || 'COMPROBANTE ELECTRÓNICO'}*\n` +
       `Serie: ${comprobante.serieNumero}\n` +
       `Fecha: ${comprobante.fechaEmision || new Date().toLocaleDateString('es-PE')}\n` +
       `Cliente: ${comprobante.cliente}\n` +
       `Total: S/ ${(comprobante.montoTotal ?? 0).toFixed(2)}\n` +
-      `Estado: ${estadoTextoWhatsApp}`
+      `Estado: ${estadoTextoWhatsApp}` +
+      refLine
     )
     window.open(`https://wa.me/?text=${text}`, '_blank')
   }
@@ -185,6 +190,11 @@ export default function TicketModal({
             <div><b>Documento:</b> {comprobante.documento}</div>
             {comprobante.clienteDireccion && (
               <div><b>Dirección:</b> {comprobante.clienteDireccion}</div>
+            )}
+            {comprobante.comprobanteReferencia && (
+              <div className="mt-1.5 pt-1.5 border-t border-dashed border-[var(--border-soft)]">
+                <b>Doc. referencia:</b> {comprobante.comprobanteReferencia}
+              </div>
             )}
             <div className="border-b border-dashed border-[var(--border)] my-2" />
 

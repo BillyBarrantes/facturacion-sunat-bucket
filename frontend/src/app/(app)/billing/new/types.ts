@@ -26,4 +26,5 @@ export type ComprobantePreview = {
   montoTotal: number
   hashCpe: string
   estadoSunat?: string
+  comprobanteReferencia?: string
 }

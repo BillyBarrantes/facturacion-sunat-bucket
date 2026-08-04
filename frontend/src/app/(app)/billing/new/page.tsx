@@ -82,6 +82,7 @@ export default function NewInvoicePage() {
   const [referenciaId, setReferenciaId] = useState('')
   const [motivoNota, setMotivoNota] = useState('')
   const [observacionesNota, setObservacionesNota] = useState('')
+  const [montoAjuste, setMontoAjuste] = useState('')
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
@@ -119,6 +120,15 @@ export default function NewInvoicePage() {
     setTipoComprobante(tipo)
     setErrorMsg('')
     setDocBadge(null)
+    // Reset completo — nada se arrastra entre tabs
+    setItems([])
+    setNewDesc('')
+    setNewPrecio('')
+    setNewCantidad('1')
+    setModoIgv('INC')
+    setDescuentoGlobal('0')
+    setAnticipoTotal('0')
+    setMontoAjuste('')
     setReferenciaId('')
     setMotivoNota('')
     setObservacionesNota('')
@@ -135,11 +145,8 @@ export default function NewInvoicePage() {
       setClienteNumDoc('00000000')
       setClienteRazonSocial('CLIENTES VARIOS')
       setClienteDireccion('')
-      setDescuentoGlobal('0')
-      setAnticipoTotal('0')
-      setModoIgv('INC')
     } else {
-      // NC/ND — la serie la define el comprobante referencia; preseleccionamos F001 fallback
+      // NC/ND — la serie la define el comprobante referencia
       setSerie(SERIE_FACTURA)
       setClienteTipoDoc('6')
       setClienteNumDoc('')
@@ -277,6 +284,12 @@ export default function NewInvoicePage() {
   const totalIgvCalculado = subtotalGravadoNeto * 0.18
   const totalImporteCalculado = Math.max(0, subtotalGravadoNeto + totalIgvCalculado - valAnticipo)
 
+  // Valores derivados para NC/ND (independientes de items[])
+  const montoAjusteNum = parseFloat(montoAjuste) || 0
+  const baseGravadaNcNd = montoAjusteNum / 1.18
+  const igvNcNdCalculado = baseGravadaNcNd * 0.18
+  const totalNcNd = montoAjusteNum
+
   const boletaAlerta700 = tipoComprobante === '03' && totalImporteCalculado > 700.0 && (!clienteNumDoc || clienteNumDoc === '00000000')
 
   const [isPreview, setIsPreview] = useState(true)
@@ -284,6 +297,7 @@ export default function NewInvoicePage() {
 
   const handleAbrirPreview = () => {
     const ncNd = isNcNd(tipoComprobante)
+    let refSerieNumero: string | undefined
 
     // Validaciones para Factura/Boleta
     if (!ncNd) {
@@ -323,7 +337,7 @@ export default function NewInvoicePage() {
         window.scrollTo({ top: 0, behavior: 'smooth' })
         return
       }
-      if (totalImporteCalculado <= 0) {
+      if (totalNcNd <= 0) {
         setErrorMsg('El monto a ajustar debe ser mayor a cero.')
         window.scrollTo({ top: 0, behavior: 'smooth' })
         return
@@ -332,6 +346,7 @@ export default function NewInvoicePage() {
       setClienteNumDoc(ref.cliente_num_doc || '00000000')
       setClienteRazonSocial(ref.cliente_razon_social || 'CLIENTES VARIOS')
       setClienteDireccion(ref.cliente_direccion || '')
+      refSerieNumero = ref.serie_numero
     }
 
     setErrorMsg('')
@@ -353,19 +368,20 @@ export default function NewInvoicePage() {
         ? [{
             descripcion: `${motivoNota}${observacionesNota ? ' — ' + observacionesNota : ''}`,
             cantidad: 1,
-            valor_unitario: totalImporteCalculado,
-            precio_unitario: totalImporteCalculado,
+            valor_unitario: baseGravadaNcNd,
+            precio_unitario: montoAjusteNum,
             unidad_medida: 'ZZ',
-            monto_ingresado: totalImporteCalculado,
+            monto_ingresado: montoAjusteNum,
             modo_ingreso: 'INC'
           }]
         : items,
-      opGravada: ncNd ? totalImporteCalculado : subtotalGravadoNeto,
+      opGravada: ncNd ? baseGravadaNcNd : subtotalGravadoNeto,
       descuento: ncNd ? 0 : valDescuento,
       anticipo: ncNd ? 0 : valAnticipo,
-      igv: ncNd ? 0 : totalIgvCalculado,
-      montoTotal: totalImporteCalculado,
+      igv: ncNd ? igvNcNdCalculado : totalIgvCalculado,
+      montoTotal: ncNd ? totalNcNd : totalImporteCalculado,
       hashCpe: '',
+      comprobanteReferencia: ncNd ? refSerieNumero : undefined,
     })
     setIsPreview(true)
     setModalOpen(true)
@@ -398,7 +414,7 @@ export default function NewInvoicePage() {
           descripcion: `${motivoNota}${observacionesNota ? ' — ' + observacionesNota : ''}`,
           unidad_medida: 'ZZ',
           cantidad: 1,
-          precio_unitario: totalImporteCalculado,
+          precio_unitario: montoAjusteNum,
         }]
         payload.serie = ref.tipo_comprobante === TIPO_FACTURA ? SERIE_FACTURA : SERIE_BOLETA
         payload.numero = 0  // backend reserva el real vía next_correlativo de NC/ND
@@ -648,11 +664,10 @@ export default function NewInvoicePage() {
                     inputMode="decimal"
                     min={0}
                     step="any"
-                    value={newCantidad === '1' ? newPrecio || '' : newCantidad}
+                    value={montoAjuste}
                     onChange={(e) => {
-                      setNewCantidad('1')
-                      setNewPrecio(e.target.value)
-                      setNewDesc(`${tipoComprobante === TIPO_NC ? 'NC' : 'ND'}: ${motivoNota || 'ajuste'}`)
+                      setMontoAjuste(e.target.value)
+                      setErrorMsg('')
                     }}
                     placeholder="0.00"
                     className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 pr-9 text-[14px] text-[var(--fg)] font-[family-name:var(--font-geist-mono)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors duration-[var(--dur-fast)]"
@@ -666,7 +681,7 @@ export default function NewInvoicePage() {
                 <input
                   type="text"
                   readOnly
-                  value={totalImporteCalculado > 0 ? `S/ ${totalIgvCalculado.toFixed(2)}` : ''}
+                  value={montoAjusteNum > 0 ? `S/ ${igvNcNdCalculado.toFixed(2)}` : ''}
                   placeholder="S/ 0.00"
                   className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--muted)] font-[family-name:var(--font-geist-mono)] placeholder:text-[var(--muted-2)]"
                 />
@@ -678,7 +693,7 @@ export default function NewInvoicePage() {
           <section className="bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-lg)] p-5 md:p-6 space-y-4 shadow-[var(--shadow-card)]">
             <div className="flex justify-between w-full text-[15px] font-semibold text-[var(--fg)] pt-1">
               <span>Importe total de la nota</span>
-              <span className="font-[family-name:var(--font-geist-mono)] text-[var(--accent)]">S/ {totalImporteCalculado.toFixed(2)}</span>
+              <span className="font-[family-name:var(--font-geist-mono)] text-[var(--accent)]">S/ {totalNcNd.toFixed(2)}</span>
             </div>
           </section>
         </div>
@@ -1000,6 +1015,7 @@ export default function NewInvoicePage() {
             montoTotal: comprobanteEmitido.montoTotal,
             hashCpe: comprobanteEmitido.hashCpe,
             estadoSunat: comprobanteEmitido.estadoSunat,
+            comprobanteReferencia: comprobanteEmitido.comprobanteReferencia,
             items: comprobanteEmitido.items.map(i => ({
               descripcion: i.descripcion,
               cantidad: i.cantidad,

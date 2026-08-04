@@ -25,6 +25,7 @@ type TicketViewModel = {
   igv: number
   hashCpe: string
   estadoSunat: string
+  comprobanteReferencia?: string
   items: Array<{ descripcion: string; cantidad: number; total: number }>
 }
 
@@ -130,6 +131,9 @@ export default function HistoryPage() {
       igv: c.importe_total - (c.importe_total / 1.18),
       hashCpe: c.hash_cpe || '',
       estadoSunat: c.estado_sunat,
+      comprobanteReferencia: c.doc_referencia_serie && c.doc_referencia_numero
+        ? `${c.doc_referencia_serie}-${String(c.doc_referencia_numero).padStart(8, '0')}`
+        : undefined,
       items: c.items.length > 0 ? c.items.map(i => ({
         descripcion: i.descripcion,
         cantidad: i.cantidad,
