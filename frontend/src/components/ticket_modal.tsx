@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Printer, Share2, CheckCircle2, Eye, Send, Loader2, PencilLine, X } from 'lucide-react'
+import { Printer, Share2, CheckCircle2, Eye, Send, Loader2, PencilLine, X, AlertCircle, Clock } from 'lucide-react'
 
 interface TicketModalProps {
   isOpen: boolean
@@ -25,6 +25,7 @@ interface TicketModalProps {
     igv: number
     montoTotal: number
     hashCpe: string
+    estadoSunat?: string
     items: Array<{ descripcion: string; cantidad: number; total: number; precio_unitario?: number }>
   }
 }
@@ -50,7 +51,7 @@ export default function TicketModal({
       `Fecha: ${comprobante.fechaEmision || new Date().toLocaleDateString('es-PE')}\n` +
       `Cliente: ${comprobante.cliente}\n` +
       `Total: S/ ${(comprobante.montoTotal ?? 0).toFixed(2)}\n` +
-      `Estado: ACEPTADO POR SUNAT`
+      `Estado: ${estadoTextoWhatsApp}`
     )
     window.open(`https://wa.me/?text=${text}`, '_blank')
   }
@@ -60,6 +61,53 @@ export default function TicketModal({
   const emisorDir = comprobante.emisorDireccion || 'AV. TRIBUTARIA 123 - LIMA'
   const tipoTitulo = comprobante.tipoComprobanteNombre || (comprobante.serieNumero.startsWith('F') ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA')
   const fecha = comprobante.fechaEmision || new Date().toLocaleDateString('es-PE')
+
+  // Estado real SUNAT cuando el comprobante ya fue emitido (no en preview).
+  const estadoSunat = !isPreview ? (comprobante.estadoSunat || '').toUpperCase() : ''
+  const isRechazado = estadoSunat === 'RECHAZADO'
+  const isPendiente = estadoSunat === 'PENDIENTE'
+  const isObservado = estadoSunat === 'OBSERVADO'
+  const isAceptadoReal = estadoSunat === 'ACEPTADO'
+
+  const headerIconBg = isPreview
+    ? 'bg-[var(--warn-soft)] text-[var(--warn)]'
+    : isAceptadoReal
+      ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
+      : (isRechazado || isObservado)
+        ? 'bg-[var(--danger-soft)] text-[var(--danger)]'
+        : isPendiente
+          ? 'bg-[var(--surface-2)] text-[var(--muted)]'
+          : 'bg-[var(--accent-soft)] text-[var(--accent)]'
+
+  const EstadoIcon = isPreview ? Eye : (isRechazado || isObservado) ? AlertCircle : isPendiente ? Clock : CheckCircle2
+
+  const headerTitulo = isPreview
+    ? 'Vista previa'
+    : isAceptadoReal
+      ? 'Comprobante aceptado'
+      : isRechazado
+        ? 'Comprobante rechazado'
+        : isPendiente
+          ? 'Comprobante pendiente'
+          : isObservado
+            ? 'Comprobante observado'
+            : 'Comprobante emitido'
+
+  const headerSub = isPreview
+    ? 'Revisa antes de firmar y enviar a SUNAT'
+    : isAceptadoReal
+      ? 'Firma digital y CDR aceptados por SUNAT'
+      : isRechazado
+        ? 'SUNAT rechazó el comprobante. Revisa el detalle y vuelve a emitir.'
+        : isPendiente
+          ? 'Enviado a SUNAT. El CDR aún no está disponible, reconsulta en unos minutos.'
+          : isObservado
+            ? 'SUNAT aceptó con observaciones. Revisa el detalle.'
+            : 'Estado de SUNAT no disponible aún.'
+
+  const estadoTextoWhatsApp = isPreview
+    ? 'PREVIEW (sin emitir)'
+    : estadoSunat || 'PENDIENTE'
 
   return (
     <div
@@ -73,18 +121,32 @@ export default function TicketModal({
         {/* Header del modal */}
         <div className="flex items-center justify-between p-5 border-b border-[var(--border-soft)]">
           <div className="flex items-center gap-2.5">
-            <div className={`h-8 w-8 rounded-full grid place-items-center ${isPreview ? 'bg-[var(--warn-soft)] text-[var(--warn)]' : 'bg-[var(--accent-soft)] text-[var(--accent)]'}`}>
-              {isPreview
-                ? <Eye className="h-4 w-4" strokeWidth={1.75} />
-                : <CheckCircle2 className="h-4 w-4" strokeWidth={1.75} />}
+            <div className={`h-8 w-8 rounded-full grid place-items-center ${headerIconBg}`}>
+              <EstadoIcon className="h-4 w-4" strokeWidth={1.75} />
             </div>
             <div>
               <h3 id="ticket-modal-title" className="text-[15px] font-semibold text-[var(--fg)] tracking-tight">
-                {isPreview ? 'Vista previa' : 'Comprobante emitido'}
+                {headerTitulo}
               </h3>
               <p className="text-[12px] text-[var(--muted)]">
-                {isPreview ? 'Revisa antes de firmar y enviar a SUNAT' : 'Firma digital y CDR aceptados'}
+                {headerSub}
               </p>
+              {estadoSunat && (
+                <div className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[var(--r-pill)] text-[10px] font-semibold tracking-[var(--tracking-caps)] uppercase ${
+                  isAceptadoReal
+                    ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
+                    : isRechazado || isObservado
+                      ? 'bg-[var(--danger-soft)] text-[var(--danger)]'
+                      : isPendiente
+                        ? 'bg-[var(--surface-2)] text-[var(--muted)]'
+                        : 'bg-[var(--surface)] text-[var(--fg-2)]'
+                }">
+                  <span className={`h-1.5 w-1.5 rounded-full ${
+                    isAceptadoReal ? 'bg-[var(--accent)]' : (isRechazado || isObservado) ? 'bg-[var(--danger)]' : 'bg-[var(--muted)]'
+                  }`} />
+                  {estadoSunat}
+                </div>
+              )}
             </div>
           </div>
 

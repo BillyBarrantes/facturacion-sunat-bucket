@@ -24,6 +24,7 @@ type TicketViewModel = {
   montoTotal: number
   igv: number
   hashCpe: string
+  estadoSunat: string
   items: Array<{ descripcion: string; cantidad: number; total: number }>
 }
 
@@ -127,7 +128,8 @@ export default function HistoryPage() {
       documento: c.cliente_num_doc || '00000000',
       montoTotal: c.importe_total,
       igv: c.importe_total - (c.importe_total / 1.18),
-      hashCpe: c.hash_cpe || 'EC3CfOGm+qqj4kQWP4KPL4TtKpGj',
+      hashCpe: c.hash_cpe || '',
+      estadoSunat: c.estado_sunat,
       items: c.items.length > 0 ? c.items.map(i => ({
         descripcion: i.descripcion,
         cantidad: i.cantidad,
@@ -496,8 +498,9 @@ export default function HistoryPage() {
       {isModalOpen && selectedTicket && (
         <TicketModal
           isOpen={isModalOpen}
+          isPreview={false}
           onClose={() => setIsModalOpen(false)}
-          comprobante={{ ...selectedTicket, cliente: selectedTicket.cliente, documento: selectedTicket.documento, items: selectedTicket.items }}
+          comprobante={{ ...selectedTicket, cliente: selectedTicket.cliente, documento: selectedTicket.documento, items: selectedTicket.items, estadoSunat: selectedTicket.estadoSunat, serieNumero: selectedTicket.serieNumero }}
         />
       )}
     </main>

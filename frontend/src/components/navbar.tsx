@@ -3,7 +3,7 @@
 import React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { FilePlus2, LayoutDashboard, ScanLine, FileText, LogOut, User, Settings, Receipt } from 'lucide-react'
+import { FilePlus2, LayoutDashboard, ScanLine, FileText, LogOut, User, Settings } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 
 export default function Navbar() {
@@ -70,19 +70,6 @@ export default function Navbar() {
 
         {/* Secondary nav */}
         <div className="px-3 pb-2 space-y-0.5">
-          <Link
-            href="/billing/nc-nd"
-            aria-current={pathname === '/billing/nc-nd' ? 'page' : undefined}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-[var(--r-sm)] text-[14px] font-medium transition-colors duration-[var(--dur-fast)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1 ${
-              pathname === '/billing/nc-nd'
-                ? 'bg-[var(--bg)] text-[var(--fg)] shadow-[var(--shadow-card)]'
-                : 'text-[var(--muted)] hover:text-[var(--fg-2)] hover:bg-[var(--surface-2)]'
-            }`}
-          >
-            <Receipt className="h-[18px] w-[18px]" strokeWidth={1.5} aria-hidden="true" />
-            <span>NC / ND</span>
-          </Link>
-
           <Link
             href="/settings"
             aria-current={pathname === '/settings' ? 'page' : undefined}

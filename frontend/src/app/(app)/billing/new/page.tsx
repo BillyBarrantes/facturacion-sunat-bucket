@@ -6,7 +6,7 @@ import { Source_Serif_4 } from 'next/font/google'
 import ClientForm from './client-form'
 import { ClipboardList, Send, Plus, Trash2, Pencil, ShieldAlert, Building, Percent, FileText, Receipt } from 'lucide-react'
 import { api, ApiClientError } from '@/lib/api-client'
-import type { DocLookupResponse, DetalleItemIn } from '@/lib/api-types'
+import type { DocLookupResponse, DetalleItemIn, ComprobanteOut } from '@/lib/api-types'
 import type { LineItem, ComprobantePreview } from './types'
 
 const sourceSerif = Source_Serif_4({
@@ -16,6 +16,38 @@ const sourceSerif = Source_Serif_4({
 })
 
 const TicketModal = dynamic(() => import('@/components/ticket_modal'), { ssr: false })
+
+// Códigos SUNAT para los 4 tipos de comprobante soportados en esta pantalla.
+const TIPO_FACTURA = '01'
+const TIPO_BOLETA = '03'
+const TIPO_NC = '07'      // Nota de Crédito
+const TIPO_ND = '08'      // Nota de Débito
+
+// Series reales usadas por el backend. El frontend no inventa correlativos NC01-*/ND01-*.
+const SERIE_FACTURA = 'F001'
+const SERIE_BOLETA = 'B001'
+
+const MOTIVOS_NC = [
+  'ANULACION DE LA OPERACION',
+  'DEVOLUCION TOTAL',
+  'DEVOLUCION PARCIAL',
+  'ERROR EN EL RUC DEL CLIENTE',
+  'OTRO',
+]
+const MOTIVOS_ND = [
+  'AUMENTO EN EL VALOR',
+  'INTERESES POR MORA',
+  'OTRO',
+]
+
+const TIPO_NOMBRE_COMPLETO: Record<string, string> = {
+  [TIPO_FACTURA]: 'FACTURA ELECTRÓNICA',
+  [TIPO_BOLETA]: 'BOLETA DE VENTA ELECTRÓNICA',
+  [TIPO_NC]: 'NOTA DE CRÉDITO ELECTRÓNICA',
+  [TIPO_ND]: 'NOTA DE DÉBITO ELECTRÓNICA',
+}
+
+const isNcNd = (t: string) => t === TIPO_NC || t === TIPO_ND
 
 export default function NewInvoicePage() {
   const [tipoComprobante, setTipoComprobante] = useState('01')
@@ -45,12 +77,19 @@ export default function NewInvoicePage() {
   const [descuentoGlobal, setDescuentoGlobal] = useState<string>('0')
   const [anticipoTotal, setAnticipoTotal] = useState<string>('0')
 
+  // Estados exclusivos de NC/ND
+  const [comprobantesReferenciables, setComprobantesReferenciables] = useState<ComprobanteOut[]>([])
+  const [referenciaId, setReferenciaId] = useState('')
+  const [motivoNota, setMotivoNota] = useState('')
+  const [observacionesNota, setObservacionesNota] = useState('')
+
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [comprobanteEmitido, setComprobanteEmitido] = useState<ComprobantePreview | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
 
   const fetchCorrelativo = async () => {
+    if (isNcNd(tipoComprobante)) return  // El correlativo real de NC/ND lo reserva el backend
     try {
       const data = await api.correlativo(tipoComprobante, serie)
       setNumero(data.siguiente_numero)
@@ -64,19 +103,34 @@ export default function NewInvoicePage() {
     fetchCorrelativo()
   }, [tipoComprobante, serie])
 
+  const fetchComprobantesReferenciables = async () => {
+    try {
+      const data = await api.listar()
+      const ref = data.comprobantes.filter(
+        c => c.tipo_comprobante === TIPO_FACTURA || c.tipo_comprobante === TIPO_BOLETA
+      )
+      setComprobantesReferenciables(ref)
+    } catch (e) {
+      console.error('Error cargando comprobantes referenciables:', e)
+    }
+  }
+
   const handleSelectTab = (tipo: string) => {
     setTipoComprobante(tipo)
     setErrorMsg('')
     setDocBadge(null)
+    setReferenciaId('')
+    setMotivoNota('')
+    setObservacionesNota('')
 
-    if (tipo === '01') {
-      setSerie('F001')
+    if (tipo === TIPO_FACTURA) {
+      setSerie(SERIE_FACTURA)
       setClienteTipoDoc('6')
       setClienteNumDoc('')
       setClienteRazonSocial('')
       setClienteDireccion('')
-    } else {
-      setSerie('B001')
+    } else if (tipo === TIPO_BOLETA) {
+      setSerie(SERIE_BOLETA)
       setClienteTipoDoc('0')
       setClienteNumDoc('00000000')
       setClienteRazonSocial('CLIENTES VARIOS')
@@ -84,6 +138,14 @@ export default function NewInvoicePage() {
       setDescuentoGlobal('0')
       setAnticipoTotal('0')
       setModoIgv('INC')
+    } else {
+      // NC/ND — la serie la define el comprobante referencia; preseleccionamos F001 fallback
+      setSerie(SERIE_FACTURA)
+      setClienteTipoDoc('6')
+      setClienteNumDoc('')
+      setClienteRazonSocial('')
+      setClienteDireccion('')
+      fetchComprobantesReferenciables()
     }
   }
 
@@ -221,30 +283,65 @@ export default function NewInvoicePage() {
   const [isEmitting, setIsEmitting] = useState(false)
 
   const handleAbrirPreview = () => {
-    if (tipoComprobante === '01' && (clienteNumDoc.length !== 11 || docBadge?.startsWith('✗'))) {
-      setErrorMsg('Para Factura Electrónica es obligatorio un RUC válido de 11 dígitos, encontrado en el padrón.')
-      return
-    }
-    if (items.length === 0) {
-      setErrorMsg('Agrega al menos un producto o servicio.')
-      return
-    }
-    if (boletaAlerta700) {
-      setErrorMsg('Norma SUNAT: el total supera los S/ 700.00. Es obligatorio registrar DNI/RUC y nombre del comprador.')
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-      return
-    }
+    const ncNd = isNcNd(tipoComprobante)
 
-    if (tipoComprobante === '01' && clienteTipoDoc !== '6') {
-      setErrorMsg('Las facturas electrónicas se emiten exclusivamente a receptores con RUC de 11 dígitos.')
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-      return
+    // Validaciones para Factura/Boleta
+    if (!ncNd) {
+      if (tipoComprobante === '01' && (clienteNumDoc.length !== 11 || docBadge?.startsWith('✗'))) {
+        setErrorMsg('Para Factura Electrónica es obligatorio un RUC válido de 11 dígitos, encontrado en el padrón.')
+        return
+      }
+      if (items.length === 0) {
+        setErrorMsg('Agrega al menos un producto o servicio.')
+        return
+      }
+      if (boletaAlerta700) {
+        setErrorMsg('Norma SUNAT: el total supera los S/ 700.00. Es obligatorio registrar DNI/RUC y nombre del comprador.')
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        return
+      }
+      if (tipoComprobante === '01' && clienteTipoDoc !== '6') {
+        setErrorMsg('Las facturas electrónicas se emiten exclusivamente a receptores con RUC de 11 dígitos.')
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        return
+      }
+    } else {
+      // Validaciones para NC/ND
+      if (comprobantesReferenciables.length === 0) {
+        setErrorMsg('Aún no tienes comprobantes emitidos. Emite primero una factura o boleta para poder generar una nota.')
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        return
+      }
+      const ref = comprobantesReferenciables.find(c => c.id === referenciaId)
+      if (!ref) {
+        setErrorMsg('Selecciona el comprobante original al que aplica la nota.')
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        return
+      }
+      if (!motivoNota) {
+        setErrorMsg('El motivo de la nota es obligatorio.')
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        return
+      }
+      if (totalImporteCalculado <= 0) {
+        setErrorMsg('El monto a ajustar debe ser mayor a cero.')
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        return
+      }
+      // Sincroniza cliente con el del comprobante referencia (NC/ND conserva cliente)
+      setClienteNumDoc(ref.cliente_num_doc || '00000000')
+      setClienteRazonSocial(ref.cliente_razon_social || 'CLIENTES VARIOS')
+      setClienteDireccion(ref.cliente_direccion || '')
     }
 
     setErrorMsg('')
+    // Para NC/ND el número final lo asigna el backend — el preview lo declara honestamente
+    const seriePreview = ncNd ? '—' : serie
+    const numeroPreview = ncNd ? '—' : String(numero).padStart(8, '0')
+    const serieNumeroPreview = `${seriePreview}-${numeroPreview}`
     setComprobanteEmitido({
-      serieNumero: `${serie}-${String(numero).padStart(8, '0')}`,
-      tipoComprobanteNombre: tipoComprobante === '01' ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA',
+      serieNumero: serieNumeroPreview,
+      tipoComprobanteNombre: TIPO_NOMBRE_COMPLETO[tipoComprobante] || 'COMPROBANTE',
       fechaEmision: new Date().toLocaleDateString('es-PE'),
       emisorRazonSocial: emisorRazonSocial,
       emisorRuc: emisorRuc,
@@ -252,13 +349,23 @@ export default function NewInvoicePage() {
       clienteRazonSocial: clienteRazonSocial,
       clienteRuc: clienteNumDoc,
       clienteDireccion: clienteDireccion,
-      items: items,
-      opGravada: subtotalGravadoNeto,
-      descuento: valDescuento,
-      anticipo: valAnticipo,
-      igv: totalIgvCalculado,
+      items: ncNd
+        ? [{
+            descripcion: `${motivoNota}${observacionesNota ? ' — ' + observacionesNota : ''}`,
+            cantidad: 1,
+            valor_unitario: totalImporteCalculado,
+            precio_unitario: totalImporteCalculado,
+            unidad_medida: 'ZZ',
+            monto_ingresado: totalImporteCalculado,
+            modo_ingreso: 'INC'
+          }]
+        : items,
+      opGravada: ncNd ? totalImporteCalculado : subtotalGravadoNeto,
+      descuento: ncNd ? 0 : valDescuento,
+      anticipo: ncNd ? 0 : valAnticipo,
+      igv: ncNd ? 0 : totalIgvCalculado,
       montoTotal: totalImporteCalculado,
-      hashCpe: ''
+      hashCpe: '',
     })
     setIsPreview(true)
     setModalOpen(true)
@@ -267,37 +374,63 @@ export default function NewInvoicePage() {
   const handleConfirmarEmitir = async () => {
     setIsEmitting(true)
     try {
-      const itemsPayload: DetalleItemIn[] = items.map((item, idx) => ({
-        codigo: `PROD${String(idx + 1).padStart(2, '0')}`,
-        descripcion: item.descripcion,
-        unidad_medida: item.unidad_medida,
-        cantidad: item.cantidad,
-        precio_unitario: item.precio_unitario,
-      }))
+      const ncNd = isNcNd(tipoComprobante)
 
-      const data = await api.emitir({
+      let itemsPayload: DetalleItemIn[]
+      const payload: Record<string, unknown> = {
         tipo_comprobante: tipoComprobante,
-        serie: serie,
-        numero: numero,
+        serie,
+        numero,
         cliente_tipo_doc: clienteTipoDoc,
         cliente_num_doc: clienteNumDoc,
         cliente_razon_social: clienteRazonSocial,
         cliente_direccion: clienteDireccion || undefined,
         moneda: 'PEN',
         metodo_pago: 'EFECTIVO',
-        descuento_global: valDescuento || undefined,
-        anticipo_total: valAnticipo || undefined,
-        items: itemsPayload,
-      })
+      }
+
+      if (ncNd) {
+        const ref = comprobantesReferenciables.find(c => c.id === referenciaId)
+        if (!ref) throw new Error('Falta comprobante referencia')
+        const [serieRef, numeroRef] = ref.serie_numero.split('-')
+        itemsPayload = [{
+          codigo: 'NC01',
+          descripcion: `${motivoNota}${observacionesNota ? ' — ' + observacionesNota : ''}`,
+          unidad_medida: 'ZZ',
+          cantidad: 1,
+          precio_unitario: totalImporteCalculado,
+        }]
+        payload.serie = ref.tipo_comprobante === TIPO_FACTURA ? SERIE_FACTURA : SERIE_BOLETA
+        payload.numero = 0  // backend reserva el real vía next_correlativo de NC/ND
+        payload.items = itemsPayload
+        payload.comprobante_referencia_tipo = ref.tipo_comprobante
+        payload.comprobante_referencia_serie = serieRef
+        payload.comprobante_referencia_numero = parseInt(numeroRef, 10)
+        payload.motivo = motivoNota
+      } else {
+        itemsPayload = items.map((item, idx) => ({
+          codigo: `PROD${String(idx + 1).padStart(2, '0')}`,
+          descripcion: item.descripcion,
+          unidad_medida: item.unidad_medida,
+          cantidad: item.cantidad,
+          precio_unitario: item.precio_unitario,
+        }))
+        payload.descuento_global = valDescuento || undefined
+        payload.anticipo_total = valAnticipo || undefined
+        payload.items = itemsPayload
+      }
+
+      const data = await api.emitir(payload as unknown as Parameters<typeof api.emitir>[0])
 
       setComprobanteEmitido(prev => prev ? {
         ...prev,
-        serieNumero: data.comprobante || `${serie}-${String(numero).padStart(8, '0')}`,
-        hashCpe: data.hash_cpe || 'EC3CfOGm+qqj4kQWP4KPL4TtKpGj',
+        serieNumero: data.comprobante || prev.serieNumero,
+        hashCpe: data.hash_cpe || '',
+        estadoSunat: data.estado_sunat || '',
       } : null)
 
       setIsPreview(false)
-      setNumero(n => n + 1)
+      if (!ncNd) setNumero(n => n + 1)
     } catch (err: unknown) {
       const msg = err instanceof ApiClientError ? err.detail : err instanceof Error ? err.message : 'Ocurrió un error al procesar el comprobante.'
       setErrorMsg(`Error al emitir: ${msg}`)
@@ -324,17 +457,17 @@ export default function NewInvoicePage() {
           </p>
         </div>
 
-        {/* Tabs Factura / Boleta — segmented sober */}
-        <div className="flex gap-1 p-1 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-sm)] w-full sm:w-fit" role="tablist" aria-label="Tipo de comprobante">
+        {/* Tabs Factura / Boleta / NC / ND — segmented sober */}
+        <div className="flex gap-1 p-1 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-sm)] w-full sm:w-fit overflow-x-auto" role="tablist" aria-label="Tipo de comprobante">
           <button
             type="button"
             role="tab"
             id="tab-factura"
-            aria-selected={tipoComprobante === '01'}
+            aria-selected={tipoComprobante === TIPO_FACTURA}
             aria-controls="panel-cliente"
-            onClick={() => handleSelectTab('01')}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 text-[13px] font-medium rounded-[6px] transition-colors ${
-              tipoComprobante === '01'
+            onClick={() => handleSelectTab(TIPO_FACTURA)}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 text-[13px] font-medium rounded-[6px] transition-colors whitespace-nowrap ${
+              tipoComprobante === TIPO_FACTURA
                 ? 'bg-[var(--bg)] text-[var(--fg)] shadow-[var(--shadow-card)]'
                 : 'text-[var(--muted)] hover:text-[var(--fg-2)]'
             }`}
@@ -347,17 +480,51 @@ export default function NewInvoicePage() {
             type="button"
             role="tab"
             id="tab-boleta"
-            aria-selected={tipoComprobante === '03'}
+            aria-selected={tipoComprobante === TIPO_BOLETA}
             aria-controls="panel-cliente"
-            onClick={() => handleSelectTab('03')}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 text-[13px] font-medium rounded-[6px] transition-colors ${
-              tipoComprobante === '03'
+            onClick={() => handleSelectTab(TIPO_BOLETA)}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 text-[13px] font-medium rounded-[6px] transition-colors whitespace-nowrap ${
+              tipoComprobante === TIPO_BOLETA
                 ? 'bg-[var(--bg)] text-[var(--fg)] shadow-[var(--shadow-card)]'
                 : 'text-[var(--muted)] hover:text-[var(--fg-2)]'
             }`}
           >
             <Receipt className="h-4 w-4" strokeWidth={1.5} />
             <span>Boleta · B001</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            id="tab-nc"
+            aria-selected={tipoComprobante === TIPO_NC}
+            aria-controls="panel-cliente"
+            onClick={() => handleSelectTab(TIPO_NC)}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 text-[13px] font-medium rounded-[6px] transition-colors whitespace-nowrap ${
+              tipoComprobante === TIPO_NC
+                ? 'bg-[var(--bg)] text-[var(--fg)] shadow-[var(--shadow-card)]'
+                : 'text-[var(--muted)] hover:text-[var(--fg-2)]'
+            }`}
+          >
+            <Receipt className="h-4 w-4" strokeWidth={1.5} />
+            <span>Nota de crédito</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            id="tab-nd"
+            aria-selected={tipoComprobante === TIPO_ND}
+            aria-controls="panel-cliente"
+            onClick={() => handleSelectTab(TIPO_ND)}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 text-[13px] font-medium rounded-[6px] transition-colors whitespace-nowrap ${
+              tipoComprobante === TIPO_ND
+                ? 'bg-[var(--bg)] text-[var(--fg)] shadow-[var(--shadow-card)]'
+                : 'text-[var(--muted)] hover:text-[var(--fg-2)]'
+            }`}
+          >
+            <FileText className="h-4 w-4" strokeWidth={1.5} />
+            <span>Nota de débito</span>
           </button>
         </div>
       </header>
@@ -379,7 +546,7 @@ export default function NewInvoicePage() {
         </div>
         <div className="text-right">
           <span className="font-[family-name:var(--font-geist-mono)] text-[12px] font-medium px-2.5 py-1 rounded-[var(--r-pill)] bg-[var(--bg)] border border-[var(--border)] text-[var(--fg-2)]">
-            {serie}-{String(numero).padStart(8, '0')}
+            {isNcNd(tipoComprobante) ? 'Se asignará al emitir' : `${serie}-${String(numero).padStart(8, '0')}`}
           </span>
         </div>
       </div>
@@ -392,8 +559,134 @@ export default function NewInvoicePage() {
         </div>
       )}
 
-      <div id="panel-cliente" role="tabpanel" aria-labelledby={tipoComprobante === '01' ? 'tab-factura' : 'tab-boleta'}>
-      {/* Cliente */}
+      <div id="panel-cliente" role="tabpanel" aria-labelledby={
+        tipoComprobante === TIPO_FACTURA ? 'tab-factura'
+        : tipoComprobante === TIPO_BOLETA ? 'tab-boleta'
+        : tipoComprobante === TIPO_NC ? 'tab-nc'
+        : 'tab-nd'
+      }>
+      {/* Sección exclusiva de NC/ND — comprobante referenciado + motivo + monto */}
+      {isNcNd(tipoComprobante) && (
+        <div className="space-y-5 md:space-y-6 animate-fade-in-up animate-delay-1">
+          {/* Comprobante referenciado */}
+          <section className="bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-lg)] p-5 md:p-6 space-y-4 shadow-[var(--shadow-card)]">
+            <div className="flex items-center gap-2 pb-4 border-b border-[var(--border-soft)]">
+              <Building className="h-4 w-4 text-[var(--accent)]" strokeWidth={1.5} aria-hidden="true" />
+              <h2 className="text-[15px] font-semibold text-[var(--fg)] tracking-tight">Comprobante original</h2>
+            </div>
+
+            {comprobantesReferenciables.length === 0 ? (
+              <div className="py-8 text-center">
+                <p className="text-[14px] font-medium text-[var(--fg-2)] mb-1">Sin comprobantes referenciables</p>
+                <p className="text-[13px] text-[var(--muted)] max-w-[44ch] mx-auto">
+                  Emite primero un comprobante ({ serie }) para poder vincularlo a esta nota.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">
+                  Selecciona comprobante <span className="text-[var(--danger)]">*</span>
+                </label>
+                <select
+                  value={referenciaId}
+                  onChange={(e) => { setReferenciaId(e.target.value); setErrorMsg('') }}
+                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] pl-3 pr-9 py-2.5 text-[14px] text-[var(--fg)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors duration-[var(--dur-fast)] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23767670%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-[length:16px] bg-[position:right_8px_center] bg-no-repeat"
+                >
+                  <option value="">— Selecciona —</option>
+                  {comprobantesReferenciables.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.serie_numero} · {c.tipo_comprobante === TIPO_FACTURA ? 'Factura' : 'Boleta'} · {c.cliente_razon_social || 'Cliente'} · S/ {c.importe_total.toFixed(2)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </section>
+
+          {/* Motivo + monto a ajustar */}
+          <section className="bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-lg)] p-5 md:p-6 space-y-4 shadow-[var(--shadow-card)]">
+            <div className="flex items-center gap-2 pb-4 border-b border-[var(--border-soft)]">
+              <ClipboardList className="h-4 w-4 text-[var(--accent)]" strokeWidth={1.5} aria-hidden="true" />
+              <h2 className="text-[15px] font-semibold text-[var(--fg)] tracking-tight">Datos de la nota</h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">
+                  Motivo <span className="text-[var(--danger)]">*</span>
+                </label>
+                <select
+                  value={motivoNota}
+                  onChange={(e) => { setMotivoNota(e.target.value); setErrorMsg('') }}
+                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] pl-3 pr-9 py-2.5 text-[14px] text-[var(--fg)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors duration-[var(--dur-fast)] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23767670%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-[length:16px] bg-[position:right_8px_center] bg-no-repeat"
+                >
+                  <option value="">— Selecciona un motivo —</option>
+                  {(tipoComprobante === TIPO_NC ? MOTIVOS_NC : MOTIVOS_ND).map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">Descripción / Observaciones</label>
+                <textarea
+                  rows={3}
+                  value={observacionesNota}
+                  onChange={(e) => setObservacionesNota(e.target.value)}
+                  placeholder="Detalle el motivo de la nota (opcional)..."
+                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--fg)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors duration-[var(--dur-fast)] resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">
+                  Monto a ajustar (S/) <span className="text-[var(--danger)]">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step="any"
+                    value={newCantidad === '1' ? newPrecio || '' : newCantidad}
+                    onChange={(e) => {
+                      setNewCantidad('1')
+                      setNewPrecio(e.target.value)
+                      setNewDesc(`${tipoComprobante === TIPO_NC ? 'NC' : 'ND'}: ${motivoNota || 'ajuste'}`)
+                    }}
+                    placeholder="0.00"
+                    className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 pr-9 text-[14px] text-[var(--fg)] font-[family-name:var(--font-geist-mono)] placeholder:text-[var(--muted-2)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[var(--focus-ring)] transition-colors duration-[var(--dur-fast)]"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-[var(--muted-2)] font-[family-name:var(--font-geist-mono)] pointer-events-none">S/</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-[var(--fg-2)] mb-1.5 tracking-[var(--tracking-small)]">IGV (18%) — informativo</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={totalImporteCalculado > 0 ? `S/ ${totalIgvCalculado.toFixed(2)}` : ''}
+                  placeholder="S/ 0.00"
+                  className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-sm)] px-3 py-2.5 text-[14px] text-[var(--muted)] font-[family-name:var(--font-geist-mono)] placeholder:text-[var(--muted-2)]"
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Totales NC/ND */}
+          <section className="bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-lg)] p-5 md:p-6 space-y-4 shadow-[var(--shadow-card)]">
+            <div className="flex justify-between w-full text-[15px] font-semibold text-[var(--fg)] pt-1">
+              <span>Importe total de la nota</span>
+              <span className="font-[family-name:var(--font-geist-mono)] text-[var(--accent)]">S/ {totalImporteCalculado.toFixed(2)}</span>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* Cliente (solo Factura/Boleta — en NC/ND el cliente se hereda del referencia) */}
+      {!isNcNd(tipoComprobante) && (
+      <>
       <div className="animate-fade-in-up animate-delay-1">
       <ClientForm
         tipoComprobante={tipoComprobante}
@@ -661,17 +954,24 @@ export default function NewInvoicePage() {
           </div>
         </div>
       </section>
+      </>
+      )}
+      {/* Fin bloque Factura/Boleta */}
 
       {/* CTA — sobrio, no grito */}
       <div className="pt-2 animate-fade-in-up animate-delay-3">
         <button
           type="button"
           onClick={handleAbrirPreview}
-          disabled={items.length === 0}
+          disabled={(!isNcNd(tipoComprobante) && items.length === 0)}
           className="w-full bg-[var(--fg)] hover:bg-[var(--fg-hover)] text-white text-[15px] font-medium py-3.5 rounded-[var(--r-sm)] inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed press-feedback"
         >
           <Send className="h-4 w-4" strokeWidth={1.5} />
-          <span>Vista previa y emisión · {serie}-{String(numero).padStart(8, '0')}</span>
+          {isNcNd(tipoComprobante) ? (
+            <span>Vista previa y emisión · Se asignará al emitir</span>
+          ) : (
+            <span>Vista previa y emisión · {serie}-{String(numero).padStart(8, '0')}</span>
+          )}
         </button>
       </div>
       </div>
@@ -699,6 +999,7 @@ export default function NewInvoicePage() {
             igv: comprobanteEmitido.igv,
             montoTotal: comprobanteEmitido.montoTotal,
             hashCpe: comprobanteEmitido.hashCpe,
+            estadoSunat: comprobanteEmitido.estadoSunat,
             items: comprobanteEmitido.items.map(i => ({
               descripcion: i.descripcion,
               cantidad: i.cantidad,

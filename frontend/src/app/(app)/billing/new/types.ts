@@ -25,4 +25,5 @@ export type ComprobantePreview = {
   igv: number
   montoTotal: number
   hashCpe: string
+  estadoSunat?: string
 }
