@@ -440,12 +440,17 @@ export default function NewInvoicePage() {
 
       const data = await api.emitir(payload as unknown as Parameters<typeof api.emitir>[0])
 
+      // Track de la serie de factura/boleta para detectar reuse en NC/ND
+      const serieEsDeFacturaBoleta = (s?: string) => !!(s && (s.startsWith(SERIE_FACTURA + '-') || s.startsWith(SERIE_BOLETA + '-')))
+
       setComprobanteEmitido(prev => prev ? {
         ...prev,
-        // NC/ND: el número real de la nota debe DIFFERIR del doc referencia.
-        // Si el backend devuelve el mismo número del comprobante original (reserva el correlativo),
-        // el frontend lo rechaza para no duplicar y mantiene "Se asignará al emitir".
-        serieNumero: ncNd && refSerieNumeroEmit && data.comprobante === refSerieNumeroEmit
+        // NC/ND: la identidad visual de la nota debe DIFFERIR de una factura/boleta.
+        // Si el backend devuelve un número con serie F001/B001 (que pertenece al doc afectado),
+        // el frontend lo rechaza para no leerse como factura — deja "Se asignará al emitir"
+        // y mantiene el doc afectado solo en "Doc. referencia".
+        // Solo aceptamos el número si tiene identidad propia (NC01/ND01/FC01/BC01/...).
+        serieNumero: ncNd && (serieEsDeFacturaBoleta(data.comprobante) || data.comprobante === refSerieNumeroEmit)
           ? prev.serieNumero
           : (data.comprobante || prev.serieNumero),
         hashCpe: data.hash_cpe || '',

@@ -64,7 +64,11 @@ export default function TicketModal({
   const emisorNombre = comprobante.emisorRazonSocial || 'EMPRESA MYPE DE PRUEBA S.A.C.'
   const emisorRuc = comprobante.emisorRuc || '20000000001'
   const emisorDir = comprobante.emisorDireccion || 'AV. TRIBUTARIA 123 - LIMA'
-  const tipoTitulo = comprobante.tipoComprobanteNombre || (comprobante.serieNumero.startsWith('F') ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA')
+  // tipoTitulo: prioriza el nombre explícito del tipo (NC/ND/Factura/Boleta).
+  // Fallback genérico solo si no hay información de tipo — nunca asumir Factura/Boleta
+  // por el prefijo de la serie, porque las NC/ND pueden reusar series F001/B001 del
+  // documento afectado y eso causaría que la UI las lea como facturas.
+  const tipoTitulo = comprobante.tipoComprobanteNombre || 'COMPROBANTE ELECTRÓNICO'
   const fecha = comprobante.fechaEmision || new Date().toLocaleDateString('es-PE')
 
   // Estado real SUNAT cuando el comprobante ya fue emitido (no en preview).
