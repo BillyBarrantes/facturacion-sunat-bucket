@@ -117,10 +117,12 @@ class SunatSOAPClient:
             root = etree.fromstring(response.content)
             app_resp = root.xpath("//applicationResponse/text()")
             if not app_resp:
+                # 200 sin CDR: respuesta incompleta de SUNAT. Estado transitorio
+                # para permitir reconsulta vía getStatus (no es observación fiscal).
                 return {
-                    "estado": "OBSERVADO",
+                    "estado": "PENDIENTE",
                     "codigo_error": "NO_CDR",
-                    "mensaje_sunat": "SUNAT respondió 200 pero no incluyó la constancia CDR.",
+                    "mensaje_sunat": "SUNAT respondió 200 sin CDR. Reconsulte con getStatus para obtener la constancia.",
                     "cdr_xml": None,
                     "cdr_zip_bytes": None
                 }

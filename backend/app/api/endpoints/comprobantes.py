@@ -455,7 +455,7 @@ def consultar_estado_cdr(
         serie, numero, tipo_comprobante, estado_actual = row[0], row[1], row[2], row[3]
         emisor = _get_emisor_or_raise(current_user["company_id"], cur)
 
-        if estado_actual in ("ACEPTADO", "RECHAZADO", "OBSERVADO", "ANULADO"):
+        if estado_actual in ("ACEPTADO", "RECHAZADO", "ANULADO"):
             return {
                 "success": True,
                 "estado_sunat": estado_actual,

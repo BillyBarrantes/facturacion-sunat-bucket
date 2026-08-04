@@ -89,9 +89,51 @@ def test_nota_debito_xml():
     xml = SunatXMLBuilder().build_xml(comp, emisor, cliente, detalles)
     assert "<DebitNote" in xml
     assert "FD01-00000002" in xml
-    assert "<cbc:DebitNoteTypeCode listID=\"0101\">08</cbc:DebitNoteTypeCode>" in xml
+    # UBL 2.1 DebitNote no admite cbc:DebitNoteTypeCode (no existe en el schema).
+    # El tipo 08 viaja en BillingReference/InvoiceDocumentReference/DocumentTypeCode.
+    assert "DebitNoteTypeCode" not in xml
     assert "B001-00000007" in xml
     assert "<cac:DebitNoteLine>" in xml
+
+
+def test_nota_debito_xml_orden_ubl():
+    """Regression shield: valida que el template ND cumpla la secuencia
+    de hijos directos de <DebitNote> segun UBL 2.1 (maindoc UBL-DebitNote-2.1.xsd).
+    En particular, DebitNoteTypeCode no debe aparecer, y los 4 aggregates
+    criticos deben respetar el orden: DiscrepancyResponse -> BillingReference
+    -> AccountingSupplierParty -> AccountingCustomerParty.
+    """
+    from lxml import etree
+    emisor, cliente, detalles = _build_context()
+    comp = {
+        "tipo_comprobante": "08",
+        "serie": "FD01",
+        "numero": 3,
+        "fecha_emision": datetime.now(),
+        "moneda": "PEN",
+        "total_gravado": 84.75,
+        "total_igv": 15.25,
+        "importe_total": 100.0,
+        "motivo": "AUMENTO EN EL VALOR",
+        "referencia": {"tipo": "01", "serie": "F001", "numero": 1},
+    }
+    xml = SunatXMLBuilder().build_xml(comp, emisor, cliente, detalles)
+    root = etree.fromstring(xml.encode("utf-8"))
+    # Hijos directos con namespace strip
+    children = [etree.QName(c).localname for c in root if isinstance(c.tag, str)]
+    # DebitNoteTypeCode no existe en UBL 2.1 DebitNote -> no debe aparecer
+    assert "DebitNoteTypeCode" not in children
+    # Orden relativo de los 4 aggregates criticos
+    pos = {name: i for i, name in enumerate(children)}
+    assert pos["DiscrepancyResponse"] < pos["BillingReference"]
+    assert pos["BillingReference"] < pos["AccountingSupplierParty"]
+    assert pos["AccountingSupplierParty"] < pos["AccountingCustomerParty"]
+    # Secuencia inicial obligatoria (UBL 2.1 DebitNoteType schema)
+    assert children[0] == "UBLExtensions"
+    assert children[1] == "UBLVersionID"
+    assert children[2] == "CustomizationID"
+    assert children[3] == "ID"
+    assert children[4] == "IssueDate"
 
 
 # ─── Resumen Diario (RC) y Comunicación de Baja (RA) ───────────────────
@@ -175,6 +217,32 @@ def test_get_status_sin_cdr(mock_client_cls):
         filename_base="20000000001-01-F001-00000001",
     )
     assert res["estado"] == "PENDIENTE"
+
+
+@patch("app.services.sunat_client.httpx.Client")
+def test_send_bill_200_sin_cdr_es_pendiente(mock_client_cls):
+    """Si SUNAT responde HTTP 200 pero sin applicationResponse (CDR),
+    el comprobante debe quedar PENDIENTE (no OBSERVADO) para habilitar
+    reconsulta via getStatus. codigo_error interno NO_CDR conserve trazabilidad."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.content = b"""<?xml version="1.0"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body><sendBillResponse xmlns="http://service.sunat.gob.pe"/></soap:Body>
+</soap:Envelope>"""
+    mock_client_cls.return_value.__enter__.return_value.post.return_value = mock_response
+
+    client = SunatSOAPClient(env="BETA")
+    res = client.send_bill(
+        ruc="20000000001",
+        sol_user="MODDATOS",
+        sol_pass="MODDATOS",
+        filename_base="20000000001-08-F001-00000001",
+        xml_content="<DebitNote/>",
+    )
+    assert res["estado"] == "PENDIENTE"
+    assert res["codigo_error"] == "NO_CDR"
+    assert "Reconsulte" in res["mensaje_sunat"]
 
 
 @patch("app.services.sunat_client.httpx.Client")

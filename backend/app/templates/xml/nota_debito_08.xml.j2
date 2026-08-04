@@ -16,7 +16,6 @@
     <cbc:ID>{{ comprobante.serie }}-{{ "%08d"|format(comprobante.numero) }}</cbc:ID>
     <cbc:IssueDate>{{ comprobante.fecha_emision.strftime('%Y-%m-%d') }}</cbc:IssueDate>
     <cbc:IssueTime>{{ comprobante.fecha_emision.strftime('%H:%M:%S') }}</cbc:IssueTime>
-    <cbc:DebitNoteTypeCode listID="0101">{{ comprobante.tipo_comprobante }}</cbc:DebitNoteTypeCode>
     <cbc:Note languageLocaleID="1000">{{ comprobante.monto_letras }}</cbc:Note>
     <cbc:DocumentCurrencyCode>{{ comprobante.moneda }}</cbc:DocumentCurrencyCode>
 
