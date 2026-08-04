@@ -447,6 +447,25 @@ export default function NewInvoicePage() {
 
       setIsPreview(false)
       if (!ncNd) setNumero(n => n + 1)
+
+      // Reset post-emisión NC/ND: el form vuelve a estado inicial vacío
+      if (ncNd) {
+        setReferenciaId('')
+        setMotivoNota('')
+        setObservacionesNota('')
+        setMontoAjuste('')
+        setClienteTipoDoc('6')
+        setClienteNumDoc('')
+        setClienteRazonSocial('')
+        setClienteDireccion('')
+      } else {
+        setItems([])
+        setNewDesc('')
+        setNewCantidad('1')
+        setNewPrecio('')
+        setDescuentoGlobal('0')
+        setAnticipoTotal('0')
+      }
     } catch (err: unknown) {
       const msg = err instanceof ApiClientError ? err.detail : err instanceof Error ? err.message : 'Ocurrió un error al procesar el comprobante.'
       setErrorMsg(`Error al emitir: ${msg}`)
