@@ -195,7 +195,13 @@ export default function TicketModal({
             <div className="border-b border-dashed border-[var(--border)] my-2" />
 
             <div><b>Cliente:</b> {comprobante.cliente}</div>
-            <div><b>Documento:</b> {comprobante.documento}</div>
+            {(() => {
+              const doc = (comprobante.documento || '').trim()
+              const isRuc = doc.length === 11 && /^\d+$/.test(doc)
+              const isDni = doc.length === 8 && /^\d+$/.test(doc)
+              const label = isRuc ? 'RUC' : isDni ? 'DNI' : 'Doc.'
+              return <div><b>{label}:</b> {doc || '—'}</div>
+            })()}
             {comprobante.clienteDireccion && (
               <div><b>Dirección:</b> {comprobante.clienteDireccion}</div>
             )}
