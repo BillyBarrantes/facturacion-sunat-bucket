@@ -22,6 +22,7 @@
     <!-- Motivo de la Nota de Débito -->
     <cac:DiscrepancyResponse>
         <cbc:ReferenceID>{{ comprobante.referencia.serie }}-{{ "%08d"|format(comprobante.referencia.numero) }}</cbc:ReferenceID>
+        <cbc:ResponseCode listID="09">{{ comprobante.motivo_codigo }}</cbc:ResponseCode>
         <cbc:Description><![CDATA[{{ comprobante.motivo }}]]></cbc:Description>
     </cac:DiscrepancyResponse>
 
@@ -90,11 +91,11 @@
     </cac:TaxTotal>
 
     <!-- TOTALES IMPORTE -->
-    <cac:RequestedMonetaryTotal>
+    <cac:LegalMonetaryTotal>
         <cbc:LineExtensionAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.total_gravado) }}</cbc:LineExtensionAmount>
         <cbc:TaxInclusiveAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.importe_total) }}</cbc:TaxInclusiveAmount>
         <cbc:PayableAmount currencyID="{{ comprobante.moneda }}">{{ "%.2f"|format(comprobante.importe_total) }}</cbc:PayableAmount>
-    </cac:RequestedMonetaryTotal>
+    </cac:LegalMonetaryTotal>
 
     <!-- ÍTEMS / LÍNEAS -->
     {% for item in detalles %}

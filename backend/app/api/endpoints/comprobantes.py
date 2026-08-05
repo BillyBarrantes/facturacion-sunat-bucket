@@ -349,6 +349,28 @@ def emitir_comprobante(
 
     if payload.tipo_comprobante in ("07", "08"):
         comprobante_data["motivo"] = payload.motivo or "ANULACION DE LA OPERACION"
+        # Mapeo del motivo (texto libre) al código del catálogo 09 de SUNAT.
+        # Catálogos separados NC vs ND: NC usa devoluciones/anulación; ND usa
+        # aumento/intereses/penalidad. Fallback a "99" (Otros) si no coincide.
+        motivo_normalizado = (payload.motivo or "ANULACION DE LA OPERACION").upper().strip()
+        MOTIVOS_NC_CATALOGO_09 = {
+            "ANULACION DE LA OPERACION": "01",
+            "DEVOLUCION TOTAL": "02",
+            "DEVOLUCION PARCIAL": "03",
+            "ERROR EN EL RUC DEL CLIENTE": "06",
+            "OTRO": "99",
+        }
+        MOTIVOS_ND_CATALOGO_09 = {
+            "AUMENTO EN EL VALOR": "11",
+            "INTERESES POR MORA": "12",
+            "PENALIDAD": "13",
+            "OTRO": "99",
+        }
+        if payload.tipo_comprobante == "07":
+            codigo_motivo = MOTIVOS_NC_CATALOGO_09.get(motivo_normalizado, "99")
+        else:
+            codigo_motivo = MOTIVOS_ND_CATALOGO_09.get(motivo_normalizado, "99")
+        comprobante_data["motivo_codigo"] = codigo_motivo
         comprobante_data["referencia"] = {
             "tipo": payload.comprobante_referencia_tipo,
             "serie": payload.comprobante_referencia_serie,

@@ -62,6 +62,7 @@ def test_nota_credito_xml():
         "total_igv": 15.25,
         "importe_total": 100.0,
         "motivo": "ANULACION DE LA OPERACION",
+        "motivo_codigo": "01",
         "referencia": {"tipo": "01", "serie": "F001", "numero": 5},
     }
     xml = SunatXMLBuilder().build_xml(comp, emisor, cliente, detalles)
@@ -84,6 +85,7 @@ def test_nota_debito_xml():
         "total_igv": 15.25,
         "importe_total": 100.0,
         "motivo": "INTERESES POR MORA",
+        "motivo_codigo": "12",
         "referencia": {"tipo": "03", "serie": "B001", "numero": 7},
     }
     xml = SunatXMLBuilder().build_xml(comp, emisor, cliente, detalles)
@@ -94,6 +96,46 @@ def test_nota_debito_xml():
     assert "DebitNoteTypeCode" not in xml
     assert "B001-00000007" in xml
     assert "<cac:DebitNoteLine>" in xml
+
+
+def test_nota_credito_xml_tiene_response_code_catalogo_09():
+    """UBL 2.1 CreditNote exige cbc:ResponseCode listID='09' en
+    DiscrepancyResponse (catalogo 09 de motivos de NC). Sin esto SUNAT
+    rechaza el XML. Verifica tambien el mapeo correcto para
+    ANULACION DE LA OPERACION -> 01."""
+    emisor, cliente, detalles = _build_context()
+    comp = {
+        "tipo_comprobante": "07", "serie": "NC01", "numero": 1,
+        "fecha_emision": datetime.now(), "moneda": "PEN",
+        "total_gravado": 84.75, "total_igv": 15.25, "importe_total": 100.0,
+        "motivo": "ANULACION DE LA OPERACION", "motivo_codigo": "01",
+        "referencia": {"tipo": "01", "serie": "F001", "numero": 5},
+    }
+    xml = SunatXMLBuilder().build_xml(comp, emisor, cliente, detalles)
+    assert "<cbc:ResponseCode listID=\"09\">01</cbc:ResponseCode>" in xml
+    # El ResponseCode debe ir entre ReferenceID y Description (orden UBL 2.1)
+    idx_ref = xml.find("<cbc:ReferenceID")
+    idx_resp = xml.find("<cbc:ResponseCode listID=\"09\"")
+    idx_desc = xml.find("<cbc:Description", idx_resp)
+    assert 0 < idx_ref < idx_resp < idx_desc
+
+
+def test_nota_debito_xml_usa_legal_monetary_total_y_response_code():
+    """ND debe usar LegalMonetaryTotal (no RequestedMonetaryTotal — SUNAT
+    rechaza este ultimo) y debe incluir ResponseCode listID='09' en
+    DiscrepancyResponse. Verifica mapeo INTERESES POR MORA -> 12."""
+    emisor, cliente, detalles = _build_context()
+    comp = {
+        "tipo_comprobante": "08", "serie": "ND01", "numero": 1,
+        "fecha_emision": datetime.now(), "moneda": "PEN",
+        "total_gravado": 84.75, "total_igv": 15.25, "importe_total": 100.0,
+        "motivo": "INTERESES POR MORA", "motivo_codigo": "12",
+        "referencia": {"tipo": "03", "serie": "B001", "numero": 7},
+    }
+    xml = SunatXMLBuilder().build_xml(comp, emisor, cliente, detalles)
+    assert "<cac:LegalMonetaryTotal>" in xml
+    assert "RequestedMonetaryTotal" not in xml
+    assert "<cbc:ResponseCode listID=\"09\">12</cbc:ResponseCode>" in xml
 
 
 def test_nota_debito_xml_orden_ubl():

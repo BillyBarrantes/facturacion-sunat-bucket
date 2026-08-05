@@ -23,6 +23,7 @@
     <!-- Motivo de la Nota de Crédito -->
     <cac:DiscrepancyResponse>
         <cbc:ReferenceID>{{ comprobante.referencia.serie }}-{{ "%08d"|format(comprobante.referencia.numero) }}</cbc:ReferenceID>
+        <cbc:ResponseCode listID="09">{{ comprobante.motivo_codigo }}</cbc:ResponseCode>
         <cbc:Description><![CDATA[{{ comprobante.motivo }}]]></cbc:Description>
     </cac:DiscrepancyResponse>
 
