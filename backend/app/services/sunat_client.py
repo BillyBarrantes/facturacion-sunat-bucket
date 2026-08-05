@@ -289,12 +289,34 @@ class SunatSOAPClient:
                 }
 
             root = etree.fromstring(response.content)
+
+            # Detectar SOAP fault antes de buscar CDR (mismo patrón que send_bill).
+            # SUNAT beta responde 200 con fault cuando el CDR aún no existe
+            # (0151/0152/2335/2336) o cuando hay un error real. Sin esto, el fault
+            # se esconde como PENDIENTE "sin CDR" y el usuario no ve la causa real.
+            fault_code = root.xpath("//*[local-name()='faultcode']")
+            fault_string = root.xpath("//*[local-name()='faultstring']")
+            if fault_code or fault_string:
+                err_code = fault_code[0].text if fault_code else "FAULT"
+                err_msg = fault_string[0].text if fault_string else "Fault SOAP sin mensaje"
+                # Códigos tolerados: SUNAT aún no tiene CDR disponible → PENDIENTE.
+                # Otros códigos: error real del proceso → RECHAZADO.
+                pending_codes = {"0151", "0152", "2335", "2336"}
+                estado = "PENDIENTE" if err_code in pending_codes else "RECHAZADO"
+                return {
+                    "estado": estado,
+                    "codigo_error": err_code,
+                    "mensaje_sunat": err_msg,
+                    "cdr_xml": None,
+                    "cdr_zip_bytes": None
+                }
+
             app_resp = root.xpath("//applicationResponse/text()")
             if not app_resp:
                 return {
                     "estado": "PENDIENTE",
-                    "codigo_error": "0",
-                    "mensaje_sunat": "SUNAT aún no tiene CDR disponible para este documento.",
+                    "codigo_error": "NO_CDR",
+                    "mensaje_sunat": "SUNAT respondió 200 sin CDR. Reintente más tarde.",
                     "cdr_xml": None,
                     "cdr_zip_bytes": None
                 }

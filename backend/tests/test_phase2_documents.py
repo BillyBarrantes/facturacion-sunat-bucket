@@ -220,6 +220,66 @@ def test_get_status_sin_cdr(mock_client_cls):
 
 
 @patch("app.services.sunat_client.httpx.Client")
+def test_get_status_soap_fault_tolerado_es_pendiente(mock_client_cls):
+    """SUNAT beta responde 200 con fault 0151 (registro no existe / CDR aún
+    no disponible) → debe clasificarse como PENDIENTE conservando el código y
+    mensaje reales del fault, en vez de escondeerlo como 'sin CDR'."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.content = b"""<?xml version="1.0"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <soap:Fault>
+      <faultcode>0151</faultcode>
+      <faultstring>El registro no existe</faultstring>
+    </soap:Fault>
+  </soap:Body>
+</soap:Envelope>"""
+    mock_client_cls.return_value.__enter__.return_value.post.return_value = mock_response
+
+    client = SunatSOAPClient(env="BETA")
+    res = client.get_status(
+        ruc="20000000001",
+        sol_user="MODDATOS",
+        sol_pass="MODDATOS",
+        filename_base="20000000001-07-NC01-00000001",
+    )
+    assert res["estado"] == "PENDIENTE"
+    assert res["codigo_error"] == "0151"
+    assert "El registro no existe" in res["mensaje_sunat"]
+
+
+@patch("app.services.sunat_client.httpx.Client")
+def test_get_status_soap_fault_no_tolerado_es_rechazado(mock_client_cls):
+    """SUNAT responde 200 con fault cuyo código no está en los tolerados
+    (ej: 2337) → debe clasificarse como RECHAZADO para no esconder el error
+    y permitir al usuario corregir/reemitir."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.content = b"""<?xml version="1.0"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <soap:Fault>
+      <faultcode>2337</faultcode>
+      <faultstring>El archivo XML no cumple con el schema UBL 2.1</faultstring>
+    </soap:Fault>
+  </soap:Body>
+</soap:Envelope>"""
+    mock_client_cls.return_value.__enter__.return_value.post.return_value = mock_response
+
+    client = SunatSOAPClient(env="BETA")
+    res = client.get_status(
+        ruc="20000000001",
+        sol_user="MODDATOS",
+        sol_pass="MODDATOS",
+        filename_base="20000000001-08-ND01-00000001",
+    )
+    assert res["estado"] == "RECHAZADO"
+    assert res["codigo_error"] == "2337"
+    assert "UBL 2.1" in res["mensaje_sunat"]
+
+
+@patch("app.services.sunat_client.httpx.Client")
 def test_send_bill_200_sin_cdr_es_pendiente(mock_client_cls):
     """Si SUNAT responde HTTP 200 pero sin applicationResponse (CDR),
     el comprobante debe quedar PENDIENTE (no OBSERVADO) para habilitar

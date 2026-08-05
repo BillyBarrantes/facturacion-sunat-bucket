@@ -489,16 +489,20 @@ def consultar_estado_cdr(
             filename_base=filename_base,
         )
 
-        if resultado["estado"] != "PENDIENTE":
-            cur.execute(
-                """
-                UPDATE public.comprobantes
-                SET estado_sunat = %s, codigo_error_sunat = %s, mensaje_sunat = %s, updated_at = NOW()
-                WHERE id = %s AND company_id = %s
-                """,
-                (resultado["estado"], resultado["codigo_error"], resultado["mensaje_sunat"], comprobante_id, current_user["company_id"])
-            )
-            conn.commit()
+        # Persistencia incondicional: siempre actualiza estado_sunat,
+        # codigo_error_sunat y mensaje_sunat, incluso si el resultado sigue
+        # siendo PENDIENTE. Así el usuario ve el código/mensaje real devuelto
+        # por SUNAT (incluyendo faults tolerados) en lugar de un flash ciego.
+        # Si llega un estado final (ACEPTADO/RECHAZADO/OBSERVADO), también pisa.
+        cur.execute(
+            """
+            UPDATE public.comprobantes
+            SET estado_sunat = %s, codigo_error_sunat = %s, mensaje_sunat = %s, updated_at = NOW()
+            WHERE id = %s AND company_id = %s
+            """,
+            (resultado["estado"], resultado["codigo_error"], resultado["mensaje_sunat"], comprobante_id, current_user["company_id"])
+        )
+        conn.commit()
 
         return {
             "success": True,
